@@ -1,0 +1,97 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+dist/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environment
+venv/
+.env/
+.env.*
+venv.bak/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Pytest cache
+.pytest_cache/
+
+# MyPy cache
+.mypy_cache/
+
+# Coverage reports
+htmlcov/
+.coverage*
+
+# Logs and local files
+*.log
+*.out
+*.pid
+*.gz
+
+# IDE/editor-specific
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+
+# MacOS-specific
+.DS_Store
+
+# Windows-specific
+Thumbs.db
+
+# Other Python tools
+.tox/
+.coverage
+.hypothesis/
+
+# Docker
+*.dockerfile
+*.envrc
+
+# Poetry
+.poetry
+
+# PyInstaller
+*.spec
+
+# Test artifacts
+coverage.xml
+nosetests.xml
+pytest.xml
+
+# Profiling
+*.prof
+*.data
+
+# Cache files
+.cache/
+__pypackages__/
+
+# Pipenv
+Pipfile.lock
+
+# PDM
+pdm.lock
+
+# Jupyter Notebook outputs
+*.ipynb
+
+# Local environment overrides
+.local.env
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
