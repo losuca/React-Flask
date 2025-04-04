@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { useParams } from "next/navigation"
 import { NavBar } from "@/components/nav-bar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -20,8 +21,9 @@ interface Player {
   joined: boolean
 }
 
-export default function JoinGroupPage({ params }: { params: { groupName: string } }) {
-  const { groupName } = params
+export default function JoinGroupPage() {
+  const params = useParams()
+  const groupName = params.groupName as string
   const { user, loading: authLoading } = useAuth()
   const [players, setPlayers] = useState<Player[]>([])
   const [loading, setLoading] = useState(true)

@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request, redirect, url_for, session as flask_session
-from models import db, Group, Player, Session, Balance, User
+from models import db, Group, Player, Session, Balance, User, Settlement
 from datetime import datetime, timedelta
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -520,36 +520,182 @@ def show_settlements(group_name):
             'error': 'You need to join this group first'
         }), 400
     
-    # Calculate total balances
-    balances = {}
+    # Calculate total balances for all players from all sessions
+    raw_balances = {}
     for player in group.players:
         total = sum(balance.amount for session in group.sessions
                    for balance in session.balances if balance.player_id == player.id)
-        balances[player.id] = total
+        raw_balances[player.id] = total
     
-    # Calculate settlements
-    settlements = []
-    if balances[current_player.id] > 0:
+    # Get all existing settlements for this group
+    all_group_settlements = Settlement.query.filter(
+        Settlement.group_id == group.id,
+        Settlement.settled == True  # Only consider settled settlements
+    ).all()
+    
+    # Create adjusted balances by accounting for settled amounts
+    adjusted_balances = raw_balances.copy()
+    
+    # Adjust balances based on settled settlements
+    for settlement in all_group_settlements:
+        # When someone has paid money, their balance increases
+        adjusted_balances[settlement.from_player_id] += settlement.amount
+        # When someone has received money, their balance decreases
+        adjusted_balances[settlement.to_player_id] -= settlement.amount
+    
+    # Delete any unsettled settlements for the current player - we'll recalculate these
+    unsettled = Settlement.query.filter(
+        ((Settlement.from_player_id == current_player.id) | 
+        (Settlement.to_player_id == current_player.id)),
+        Settlement.group_id == group.id,
+        Settlement.settled == False
+    ).all()
+    
+    for settlement in unsettled:
+        db.session.delete(settlement)
+    
+    db.session.commit()
+    
+    # Create new settlements based on adjusted balances
+    if adjusted_balances[current_player.id] > 0:  # Current player is owed money
         for player in group.players:
-            if balances[player.id] < 0:
-                amount = min(balances[current_player.id], abs(balances[player.id]))
-                if amount > 0:
-                    settlements.append(f"Receive {f'{amount:.2f}'.rstrip('0').rstrip('.')} from {player.name}")
-    else:
+            if player.id != current_player.id and adjusted_balances[player.id] < 0:
+                # Calculate how much this player owes the current player
+                owed_amount = min(adjusted_balances[current_player.id], abs(adjusted_balances[player.id]))
+                
+                if owed_amount > 0:
+                    settlement = Settlement(
+                        from_player_id=player.id,
+                        to_player_id=current_player.id,
+                        amount=owed_amount,
+                        description=f"{player.name} pays {current_player.name}",
+                        group_id=group.id
+                    )
+                    db.session.add(settlement)
+    elif adjusted_balances[current_player.id] < 0:  # Current player owes money
         for player in group.players:
-            if balances[player.id] > 0:
-                amount = min(abs(balances[current_player.id]), balances[player.id])
-                if amount > 0:
-                    settlements.append(f"Pay {f'{amount:.2f}'.rstrip('0').rstrip('.')} to {player.name}")
+            if player.id != current_player.id and adjusted_balances[player.id] > 0:
+                # Calculate how much the current player owes this player
+                owed_amount = min(abs(adjusted_balances[current_player.id]), adjusted_balances[player.id])
+                
+                if owed_amount > 0:
+                    settlement = Settlement(
+                        from_player_id=current_player.id,
+                        to_player_id=player.id,
+                        amount=owed_amount,
+                        description=f"{current_player.name} pays {player.name}",
+                        group_id=group.id
+                    )
+                    db.session.add(settlement)
+    
+    db.session.commit()
+    
+    # Get all settlements for the current player (both new and previously settled)
+    current_player_settlements = Settlement.query.filter(
+        ((Settlement.from_player_id == current_player.id) | 
+        (Settlement.to_player_id == current_player.id)),
+        Settlement.group_id == group.id
+    ).all()
+    
+    # Format settlements for the response
+    formatted_settlements = []
+    for settlement in current_player_settlements:
+        from_player = Player.query.get(settlement.from_player_id)
+        to_player = Player.query.get(settlement.to_player_id)
+        
+        text = f"{from_player.name} pays {to_player.name} ${settlement.amount:.2f}"
+        if settlement.settled:
+            text += " (Settled)"
+            
+        formatted_settlements.append({
+            'id': str(settlement.id),  # Convert to string to match frontend expectation
+            'text': text,
+            'from': from_player.name,
+            'to': to_player.name,
+            'amount': settlement.amount,
+            'settled': settlement.settled,
+            'settled_date': settlement.settled_date.isoformat() if settlement.settled_date else None
+        })
     
     return jsonify({
-        'settlements': [{'text': settlement} for settlement in settlements],
+        'settlements': formatted_settlements,
         'current_user': {
             'id': current_player.id,
             'name': current_player.name,
-            'balance': balances[current_player.id]
+            'username': flask_session.get('username'),
+            'balance': raw_balances[current_player.id]  # Return the raw balance for display
         }
     })
+
+
+
+
+@app.route('/settlements/<group_name>/settle', methods=['POST'])
+@login_required
+def mark_settlement_as_settled(group_name):
+    group = Group.query.filter_by(name=group_name).first_or_404()
+    
+    # Get the logged-in user's player record for this group
+    current_player = Player.query.filter_by(
+        user_id=flask_session['user_id'],
+        group_id=group.id,
+        joined=True
+    ).first()
+    
+    if not current_player:
+        return jsonify({
+            'success': False,
+            'error': 'You need to join this group first'
+        }), 400
+    
+    # Get the settlement ID from the request
+    data = request.get_json() if request.is_json else request.form
+    settlement_id = data.get('settlementId')
+    
+    if not settlement_id:
+        return jsonify({
+            'success': False,
+            'error': 'Settlement ID is required'
+        }), 400
+    
+    # Find the settlement
+    settlement = Settlement.query.get(settlement_id)
+    
+    if not settlement:
+        return jsonify({
+            'success': False,
+            'error': 'Settlement not found'
+        }), 404
+    
+    # Verify the settlement belongs to the current user
+    if settlement.from_player_id != current_player.id:
+        return jsonify({
+            'success': False,
+            'error': 'You can only mark your own settlements as settled'
+        }), 403
+    
+    # Mark the settlement as settled
+    try:
+        settlement.settled = True
+        settlement.settled_date = datetime.now()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Settlement marked as completed',
+            'settlement': {
+                'id': settlement.id,
+                'settled': settlement.settled,
+                'settled_date': settlement.settled_date.isoformat()
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error marking settlement as settled: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to mark settlement as settled'
+        }), 500
 
 # Player management routes
 @app.route('/add_player/<group_name>', methods=['POST'])

@@ -24,6 +24,7 @@ class Group(db.Model):
     players = db.relationship('Player', backref='group', lazy=True, 
                             foreign_keys='Player.group_id')
     sessions = db.relationship('Session', backref='group', lazy=True)
+    settlements = db.relationship('Settlement', backref='group', lazy=True)
     current_user_id = db.Column(db.Integer, db.ForeignKey('player.id'))
 
 class Player(db.Model):
@@ -33,6 +34,9 @@ class Player(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))  # Link to the user who controls this player
     joined = db.Column(db.Boolean, default=False)
     balances = db.relationship('Balance', backref='player', lazy=True)
+    # Add relationships for settlements
+    outgoing_settlements = db.relationship('Settlement', backref='from_player', lazy=True, foreign_keys='Settlement.from_player_id')
+    incoming_settlements = db.relationship('Settlement', backref='to_player', lazy=True, foreign_keys='Settlement.to_player_id')
 
 
 class Session(db.Model):
@@ -48,3 +52,14 @@ class Balance(db.Model):
     amount = db.Column(db.Float, nullable=False)
     session_id = db.Column(db.Integer, db.ForeignKey('session.id'))
     player_id = db.Column(db.Integer, db.ForeignKey('player.id'))
+
+class Settlement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    from_player_id = db.Column(db.Integer, db.ForeignKey('player.id'), nullable=False)
+    to_player_id = db.Column(db.Integer, db.ForeignKey('player.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    description = db.Column(db.String(200))
+    created_date = db.Column(db.DateTime, default=datetime.utcnow)
+    settled = db.Column(db.Boolean, default=False)
+    settled_date = db.Column(db.DateTime, nullable=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)

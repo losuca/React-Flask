@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { useParams } from "next/navigation"
 import { NavBar } from "@/components/nav-bar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,7 +15,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import * as api from "@/lib/api"
 import { 
-  Calendar, DollarSign, Users, ArrowLeft, 
+  Calendar, Euro, Users, ArrowLeft, 
   AlertCircle, CalendarDays, Save, Calculator, 
   PlusCircle, MinusCircle, HelpCircle, Info
 } from "lucide-react"
@@ -32,8 +33,9 @@ interface Group {
   players: Player[]
 }
 
-export default function AddSessionPage({ params }: { params: { groupName: string } }) {
-  const { groupName } = params
+export default function AddSessionPage() {
+  const params = useParams();
+  const groupName = params.groupName as string
   const { user } = useAuth()
   const [group, setGroup] = useState<Group | null>(null)
   const [loading, setLoading] = useState(true)
@@ -235,8 +237,8 @@ export default function AddSessionPage({ params }: { params: { groupName: string
 
                     <div className="space-y-2">
                       <Label htmlFor="buy-in" className="flex items-center gap-1">
-                        <DollarSign className="h-4 w-4" />
-                        Buy-in Amount ($)
+                        <Euro className="h-4 w-4" />
+                        Buy-in Amount (€)
                       </Label>
                       <Input
                         id="buy-in"
@@ -270,7 +272,7 @@ export default function AddSessionPage({ params }: { params: { groupName: string
                           ? 'text-green-600 dark:text-green-400' 
                           : 'text-red-600 dark:text-red-400'
                       }`}>
-                        ${calculateTotalProfitLoss().toFixed(2)}
+                        €{calculateTotalProfitLoss().toFixed(2)}
                       </div>
                       {Math.abs(calculateTotalProfitLoss()) < 0.01 ? (
                         <p className="text-xs text-green-600 dark:text-green-400 mt-1">
@@ -342,7 +344,7 @@ export default function AddSessionPage({ params }: { params: { groupName: string
                           <>
                             <div className="grid grid-cols-12 gap-2 text-sm font-medium text-muted-foreground mb-2">
                               <div className="col-span-5 sm:col-span-6">Player</div>
-                              <div className="col-span-4 sm:col-span-3">Final Chips ($)</div>
+                              <div className="col-span-4 sm:col-span-3">Final Chips (€)</div>
                               <div className="col-span-3 sm:col-span-3">Profit/Loss</div>
                             </div>
                             
@@ -380,7 +382,7 @@ export default function AddSessionPage({ params }: { params: { groupName: string
                                         : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
                                   }`}>
                                     {getPlayerProfitLoss(player.name) > 0 ? '+' : ''}
-                                    ${getPlayerProfitLoss(player.name).toFixed(2)}
+                                    €{getPlayerProfitLoss(player.name).toFixed(2)}
                                   </div>
                                 </div>
                               </div>

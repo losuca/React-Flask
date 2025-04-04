@@ -36,7 +36,6 @@ export default function FindGroupPage() {
     const fetchGroups = async () => {
       try {
         setLoading(true)
-        // This API endpoint would need to be created to fetch all available groups
         const response = await api.getAllGroups()
         setGroups(response.groups || [])
         setFilteredGroups(response.groups || [])
@@ -210,7 +209,7 @@ export default function FindGroupPage() {
       
       <footer className="border-t border-border/40 mt-auto">
         <div className="container mx-auto p-4 text-center text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} Poker Count. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} PokerCount. All rights reserved.</p>
         </div>
       </footer>
     </div>

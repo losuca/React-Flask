@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { useParams } from "next/navigation"
 import { NavBar } from "@/components/nav-bar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
@@ -13,7 +14,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import * as api from "@/lib/api"
 import { 
-  Calendar, DollarSign, Users, Trash2, ArrowLeft, 
+  Calendar, Euro, Users, Trash2, ArrowLeft, 
   AlertCircle, CalendarDays, TrendingUp, TrendingDown, 
   BarChart3, Edit
 } from "lucide-react"
@@ -37,12 +38,10 @@ interface Session {
   balances: Balance[]
 }
 
-export default function SessionDetailPage({
-  params,
-}: {
-  params: { groupName: string; sessionId: string }
-}) {
-  const { groupName, sessionId } = params
+export default function SessionDetailPage() {
+  const params = useParams()
+  const groupName = params.groupName as string
+  const sessionId = params.sessionId as string
   const { user } = useAuth()
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
@@ -189,10 +188,10 @@ export default function SessionDetailPage({
                     <div className="grid grid-cols-2 gap-4">
                       <div className="bg-primary/5 p-3 rounded-lg">
                         <div className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
-                          <DollarSign size={14} />
+                          <Euro size={14} />
                           Buy-in
                         </div>
-                        <div className="text-xl font-bold">${session.buy_in}</div>
+                        <div className="text-xl font-bold">€{session.buy_in}</div>
                       </div>
                       <div className="bg-primary/5 p-3 rounded-lg">
                         <div className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
@@ -206,7 +205,7 @@ export default function SessionDetailPage({
                           <BarChart3 size={14} />
                           Total Pot
                         </div>
-                        <div className="text-xl font-bold">${getTotalPot()}</div>
+                        <div className="text-xl font-bold">€{getTotalPot()}</div>
                       </div>
                       <div className="bg-primary/5 p-3 rounded-lg">
                         <div className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
@@ -236,7 +235,7 @@ export default function SessionDetailPage({
                           </div>
                         </div>
                         <div className="text-xl font-bold text-green-600 dark:text-green-400">
-                          +${getTopWinner()?.amount}
+                          +€{getTopWinner()?.amount}
                         </div>
                       </div>
                     )}
@@ -253,7 +252,7 @@ export default function SessionDetailPage({
                           </div>
                         </div>
                         <div className="text-xl font-bold text-red-600 dark:text-red-400">
-                          ${getTopLoser()?.amount}
+                          €{getTopLoser()?.amount}
                         </div>
                       </div>
                     )}
@@ -304,7 +303,7 @@ export default function SessionDetailPage({
                                       ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' 
                                       : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
                                 }`}>
-                                  {balance.amount >= 0 ? "+" : ""}${Math.abs(balance.amount)}
+                                  {balance.amount >= 0 ? "+" : ""}€{Math.abs(balance.amount)}
                                 </span>
                               </div>
                             </div>

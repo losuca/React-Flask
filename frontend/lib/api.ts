@@ -83,6 +83,11 @@ export const getSettlements = async (groupName: string) => {
   return response.data
 }
 
+export const markSettlementAsSettled = async (groupName: string, settlementId: string) => {
+  const response = await api.post(`/settlements/${groupName}/settle`, { settlementId })
+  return response.data
+}
+
 // Player endpoints
 export const addPlayer = async (groupName: string, playerName: string) => {
   const response = await api.post(`/add_player/${groupName}`, { player_name: playerName })

@@ -148,7 +148,7 @@ export default function LoginPage() {
         </Card>
         
         <div className="text-center mt-8 text-xs text-muted-foreground">
-          <p>© {new Date().getFullYear()} Poker Count. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} PokerCount. All rights reserved.</p>
         </div>
       </div>
     </div>

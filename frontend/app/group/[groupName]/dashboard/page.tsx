@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { useParams } from "next/navigation"
 import { NavBar } from "@/components/nav-bar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
@@ -12,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
 import * as api from "@/lib/api"
 import { 
-  Users, Calendar, DollarSign, PlusCircle, BarChart3, 
+  Users, Calendar, Euro, PlusCircle, BarChart3, 
   Clock, Trophy, AlertCircle, ArrowRight, User, Loader2,
   CalendarDays, Settings, Share2
 } from "lucide-react"
@@ -48,8 +49,9 @@ interface Group {
   current_user_id: number
 }
 
-export default function GroupDashboardPage({ params }: { params: { groupName: string } }) {
-  const { groupName } = params
+export default function GroupDashboardPage() {
+  const params = useParams()
+  const groupName = params.groupName as string
   const { user } = useAuth()
   const [group, setGroup] = useState<Group | null>(null)
   const [loading, setLoading] = useState(true)
@@ -247,13 +249,13 @@ export default function GroupDashboardPage({ params }: { params: { groupName: st
                 <Card className="bg-primary/5 border-primary/20">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg flex items-center gap-2">
-                      <DollarSign className="h-5 w-5 text-primary" />
+                      <Euro className="h-5 w-5 text-primary" />
                       Total Money Tracked
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold">
-                      ${calculateTotalMoneyTracked(group?.sessions || [])}
+                      €{calculateTotalMoneyTracked(group?.sessions || [])}
                     </div>
                     <p className="text-muted-foreground text-sm">
                       Across all sessions
@@ -284,7 +286,7 @@ export default function GroupDashboardPage({ params }: { params: { groupName: st
                             <div className="flex justify-between items-start">
                               <CardTitle>{session.name}</CardTitle>
                               <Badge variant="outline">
-                                ${session.buy_in}
+                                €{session.buy_in}
                               </Badge>
                             </div>
                             <CardDescription className="flex items-center gap-1">
@@ -304,7 +306,7 @@ export default function GroupDashboardPage({ params }: { params: { groupName: st
                               </div>
                               <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">Total Pot:</span>
-                                <span className="font-medium">${session.buy_in * (session.balances?.length || 0)}</span>
+                                <span className="font-medium">€{session.buy_in * (session.balances?.length || 0)}</span>
                               </div>
                               <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">Top Winner:</span>
@@ -379,7 +381,7 @@ export default function GroupDashboardPage({ params }: { params: { groupName: st
                                       ? 'text-red-600' 
                                       : ''
                                 }`}>
-                                  ${getPlayerTotalWinnings(player.id, group?.sessions || [])}
+                                  €{getPlayerTotalWinnings(player.id, group?.sessions || [])}
                                 </span>
                               </div>
                               <div className="flex justify-between text-sm">
