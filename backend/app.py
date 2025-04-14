@@ -34,8 +34,8 @@ app.config.update(
 # Initialize extensions
 db.init_app(app)
 # Enable CSRF in production
-if os.environ.get('FLASK_ENV') == 'production':
-    csrf = CSRFProtect(app)
+#if os.environ.get('FLASK_ENV') == 'production':
+#    csrf = CSRFProtect(app)
 
 # Configure CORS
 cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')
