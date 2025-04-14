@@ -93,12 +93,12 @@ def login_required(f):
     return decorated_function
 
 # Request handlers
-@app.before_request
-def before_request():
+#@app.before_request
+#def before_request():
     # Force HTTPS in production
-    if not request.is_secure and not app.debug:
-        url = request.url.replace('http://', 'https://', 1)
-        return redirect(url)
+ #   if not request.is_secure and not app.debug:
+ #       url = request.url.replace('http://', 'https://', 1)
+  #      return redirect(url)
 
 @app.after_request
 def after_request(response):
