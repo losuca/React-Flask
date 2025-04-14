@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,7 +12,7 @@ import Link from "next/link"
 import { Eye, EyeOff, LogIn, User, KeyRound, CheckCircle } from "lucide-react"
 import  { useRouter, useSearchParams } from "next/navigation"
 
-export default function LoginPage() {
+function LoginContent() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -182,5 +182,14 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// Wrap the client component in Suspense
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <LoginContent />
+    </Suspense>
   )
 }
