@@ -38,8 +38,8 @@ if os.environ.get('FLASK_ENV') == 'production':
     csrf = CSRFProtect(app)
 
 # Configure CORS
-cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')
-CORS(app, origins=cors_origins.split(','), supports_credentials=True)
+#cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')
+#CORS(app, origins=cors_origins.split(','), supports_credentials=True)
 
 # Setup logging
 def configure_logging():
