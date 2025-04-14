@@ -927,8 +927,7 @@ def reset_db():
         db.create_all()
 
 # Application entry point
-if __name__ == '__main__':
-    reset_db()            
+if __name__ == '__main__':      
     app.run(debug=os.environ.get('FLASK_ENV') == 'development', 
             host='0.0.0.0', 
             port=int(os.environ.get('PORT', 5000)))
