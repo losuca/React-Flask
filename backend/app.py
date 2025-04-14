@@ -886,13 +886,7 @@ def reset_db():
 
 # Application entry point
 if __name__ == '__main__':
-    # Only reset the database in development mode
-    if os.environ.get('FLASK_ENV') == 'development':
-        reset_db()
-    else:
-        with app.app_context():
-            db.create_all()
-            
+    reset_db()            
     app.run(debug=os.environ.get('FLASK_ENV') == 'development', 
             host='0.0.0.0', 
             port=int(os.environ.get('PORT', 5000)))
