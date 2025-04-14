@@ -865,6 +865,48 @@ def remove_group(group_name):
         'success': True
     })
 
+@app.route('/leave_group/<group_name>', methods=['POST'])
+@login_required
+def leave_group(group_name):
+    group = Group.query.filter_by(name=group_name).first_or_404()
+    
+    # Find the player record for the current user in this group
+    player = Player.query.filter_by(
+        user_id=flask_session['user_id'],
+        group_id=group.id,
+        joined=True
+    ).first()
+    
+    if not player:
+        return jsonify({
+            'success': False,
+            'error': 'You are not a member of this group'
+        }), 400
+    
+    # If the user is the creator and there are other joined players, don't allow leaving
+    if group.creator_id == flask_session['user_id']:
+        joined_players = Player.query.filter_by(
+            group_id=group.id,
+            joined=True
+        ).count()
+        
+        if joined_players > 1:
+            return jsonify({
+                'success': False,
+                'error': 'As the group creator, you cannot leave while other players are in the group'
+            }), 400
+    
+    # Update the player record to mark as not joined
+    player.joined = False
+    player.user_id = None
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': 'You have left the group successfully'
+    })
+
+
 @app.route('/remove_session/<group_name>/<int:session_id>', methods=['POST'])
 @login_required
 def remove_session(group_name, session_id):

@@ -1,5 +1,17 @@
 "use client"
-
+import { useToast } from "@/components/ui/use-toast"
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { Input } from "@/components/ui/input"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
@@ -45,9 +57,9 @@ interface Balance {
 interface Group {
   id: number
   name: string
+  creator_id: number
   players: Player[]
   sessions: Session[]
-  current_user_id: number
 }
 
 export default function GroupDashboardPage() {
@@ -60,6 +72,10 @@ export default function GroupDashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<Player | null>(null)
   const [activeTab, setActiveTab] = useState("sessions")
+  const { toast } = useToast()
+  const [showAddPlayerDialog, setShowAddPlayerDialog] = useState(false)
+  const [newPlayerName, setNewPlayerName] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     // Authentication check
@@ -133,6 +149,62 @@ export default function GroupDashboardPage() {
     }).length
     
     return Math.round((winCount / playerSessions.length) * 100)
+  }
+
+  const handleLeaveGroup = async () => {
+    try {
+      setIsSubmitting(true)
+      await api.leaveGroup(groupName)
+      toast({
+        title: "Success",
+        description: "You have left the group successfully",
+      })
+      router.push('/home')
+    } catch (error) {
+      console.error("Failed to leave group:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to leave the group. Please try again.",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleAddPlayer = async () => {
+    if (!newPlayerName.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Player name cannot be empty",
+      })
+      return
+    }
+    
+    try {
+      setIsSubmitting(true)
+      await api.addPlayer(groupName, newPlayerName)
+      toast({
+        title: "Success",
+        description: `Player "${newPlayerName}" added successfully`,
+      })
+      
+      // Refresh group data
+      const response = await api.getGroupDashboard(groupName)
+      setGroup(response.group)
+      setNewPlayerName("")
+      setShowAddPlayerDialog(false)
+    } catch (error) {
+      console.error("Failed to add player:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to add player. Please try again.",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Authentication loading state
@@ -235,6 +307,49 @@ export default function GroupDashboardPage() {
                       <span>Settlements</span>
                     </Link>
                   </Button>
+                  {group?.creator_id === user?.id && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setShowAddPlayerDialog(true)}
+                      className="flex items-center gap-1"
+                    >
+                      <PlusCircle size={16} />
+                      <span>Add Player</span>
+                    </Button>
+                  )}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm" className="flex items-center gap-1">
+                        <Users size={16} />
+                        <span>Leave Group</span>
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will remove you from the group. You can rejoin later if needed.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={handleLeaveGroup}
+                          disabled={isSubmitting}
+                        >
+                          {isSubmitting ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Leaving...
+                            </>
+                          ) : (
+                            "Leave Group"
+                          )}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                   <Button asChild>
                     <Link href={`/add-session/${groupName}`} className="flex items-center gap-1">
                       <PlusCircle size={16} />
@@ -243,6 +358,40 @@ export default function GroupDashboardPage() {
                   </Button>
                 </div>
               </div>
+
+              <AlertDialog open={showAddPlayerDialog} onOpenChange={setShowAddPlayerDialog}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Add New Player</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Enter the name of the player you want to add to this group.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="py-4">
+                    <Input
+                      placeholder="Player name"
+                      value={newPlayerName}
+                      onChange={(e) => setNewPlayerName(e.target.value)}
+                    />
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={handleAddPlayer}
+                      disabled={isSubmitting || !newPlayerName.trim()}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Adding...
+                        </>
+                      ) : (
+                        "Add Player"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
 
               {error && (
                 <Alert variant="destructive" className="mb-6">

@@ -119,3 +119,7 @@ export const removeSession = async (groupName: string, sessionId: number) => {
   return response.data
 }
 
+export const leaveGroup = async (groupName: string) => {
+  const response = await api.post(`/leave_group/${groupName}`)
+  return response.data
+}
