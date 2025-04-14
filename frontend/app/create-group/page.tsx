@@ -10,11 +10,12 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import * as api from "@/lib/api"
 import { ArrowLeft, AlertCircle, Plus, Loader2, X, Users } from "lucide-react"
 
 export default function CreateGroupPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [groupName, setGroupName] = useState("")
   const [playerName, setPlayerName] = useState("")
@@ -45,6 +46,12 @@ export default function CreateGroupPage() {
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!groupName.trim() || isSubmitting) return
+    
+    // Prevent creating a group without players
+    if (players.length === 0) {
+      setError("Please add at least one player to the group")
+      return
+    }
 
     try {
       setIsSubmitting(true)
@@ -68,14 +75,47 @@ export default function CreateGroupPage() {
     }
   }
 
+  // Authentication loading state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <NavBar />
+        <div className="container mx-auto p-4 flex justify-center items-center flex-1">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-6">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-10 w-full mt-4" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  // Not authenticated state
   if (!user) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
-        <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
-        <p className="mb-6">Please log in to create a poker group.</p>
-        <Button asChild>
-          <Link href="/">Log In</Link>
-        </Button>
+      <div className="min-h-screen bg-background flex flex-col">
+        <NavBar />
+        <div className="container mx-auto p-4 flex justify-center items-center flex-1">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Authentication Required</CardTitle>
+              <CardDescription>Please log in to access this page</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => router.push('/?redirect=' + encodeURIComponent(window.location.pathname))}
+                className="w-full"
+              >
+                Login
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
@@ -85,7 +125,7 @@ export default function CreateGroupPage() {
       <NavBar />
       
       <main className="flex-1">
-        <div className="container mx-auto p-4 max-w-2xl">
+        <div className="container mx-auto p-4 max-w-4xl">
           <div className="flex items-center gap-2 mb-6">
             <Button variant="outline" size="sm" asChild className="mr-2">
               <Link href="/home" className="flex items-center gap-1">
@@ -103,7 +143,7 @@ export default function CreateGroupPage() {
             </Alert>
           )}
 
-          <Card>
+          <Card className="overflow-hidden transition-all hover:shadow-md border border-border/40">
             <form onSubmit={handleCreateGroup}>
               <CardHeader>
                 <CardTitle>Group Details</CardTitle>
@@ -147,7 +187,7 @@ export default function CreateGroupPage() {
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Add the players who will participate in your poker games.
+                    Add the players who will participate in your poker games. At least one player is required.
                   </p>
                 </div>
                 
@@ -177,20 +217,19 @@ export default function CreateGroupPage() {
                   </div>
                 )}
               </CardContent>
-              <CardFooter className="flex flex-col sm:flex-row gap-3">
+              <CardFooter className="flex justify-between gap-4">
                 <Button 
                   type="button" 
                   variant="outline"
                   onClick={() => router.push('/home')}
-                  className="w-full sm:w-auto"
                   disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
                 <Button 
                   type="submit" 
-                  className="w-full sm:w-auto flex items-center gap-2"
-                  disabled={isSubmitting || !groupName.trim()}
+                  className="flex items-center gap-2"
+                  disabled={isSubmitting || !groupName.trim() || players.length === 0}
                 >
                   {isSubmitting ? (
                     <>

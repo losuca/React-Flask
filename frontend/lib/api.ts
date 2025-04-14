@@ -8,6 +8,11 @@ const api = axios.create({
 })
 
 // Auth endpoints
+export const checkAuthStatus = async () => {
+  const response = await api.get("/auth/status")
+  return response.data
+}
+
 export const login = async (username: string, password: string) => {
   const response = await api.post("/", { username, password })
   return response.data
@@ -96,6 +101,11 @@ export const addPlayer = async (groupName: string, playerName: string) => {
 
 export const removePlayer = async (groupName: string, playerId: number) => {
   const response = await api.post(`/remove_player/${groupName}/${playerId}`)
+  return response.data
+}
+
+export const getPlayerStats = async (playerId: number) => {
+  const response = await api.get(`/player/${playerId}/stats`)
   return response.data
 }
 

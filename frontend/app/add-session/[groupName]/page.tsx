@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Switch } from "@/components/ui/switch";
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import * as api from "@/lib/api"
@@ -36,28 +37,41 @@ interface Group {
 export default function AddSessionPage() {
   const params = useParams();
   const groupName = params.groupName as string
-  const { user } = useAuth()
+  const { user, loading:authLoading } = useAuth()
   const [group, setGroup] = useState<Group | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sessionName, setSessionName] = useState("")
   const [date, setDate] = useState(new Date().toISOString().split("T")[0])
-  const [buyIn, setBuyIn] = useState("0")
+  const [buyIn, setBuyIn] = useState("")
   const [playerChips, setPlayerChips] = useState<Record<string, string>>({})
+  const [playerParticipation, setPlayerParticipation] = useState<Record<string, boolean>>({})
   const router = useRouter()
 
   useEffect(() => {
+    // Authentication check
+    if (!user && !authLoading) {
+      const currentPath = window.location.pathname
+      router.push('/?redirect=' + encodeURIComponent(currentPath))
+      return
+    }
+
+    if (!user) return
+
     const fetchGroup = async () => {
       try {
         setLoading(true)
         const response = await api.getGroupDashboard(groupName)
         setGroup(response.group)
 
-        // Initialize player chips with buy-in amount
+        // Initialize player chips with empty strings
         const chips: Record<string, string> = {}
+        // Initialize player participation (all true by default)
+        const participation: Record<string, boolean> = {}
         response.group.players.forEach((player: Player) => {
-          chips[player.name] = "0"
+          chips[player.name] = ""
+          participation[player.name] = true
         })
         setPlayerChips(chips)
         setError(null)
@@ -70,46 +84,48 @@ export default function AddSessionPage() {
     }
 
     fetchGroup()
-  }, [groupName])
+  }, [groupName, user, authLoading, router])
 
   // Update all player chips when buy-in changes
   useEffect(() => {
     if (group?.players && buyIn) {
       const chips: Record<string, string> = {}
       group.players.forEach((player: Player) => {
-        // Keep existing values if they exist, otherwise set to buy-in
-        chips[player.name] = playerChips[player.name] || buyIn
+        // Only set to buy-in if there's no existing value (not even empty string)
+        chips[player.name] = playerChips[player.name] !== undefined ? playerChips[player.name] : ""
       })
       setPlayerChips(chips)
     }
   }, [buyIn, group?.players])
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     
     try {
-      setSubmitting(true)
-      setError(null)
+      setSubmitting(true);
+      setError(null);
       
-      const formData = new FormData()
-      formData.append("session_name", sessionName)
-      formData.append("date", date)
-      formData.append("buy_in", buyIn)
-  
-      // Add player balances - send the raw chip counts as entered by the user
+      const formData = new FormData();
+      formData.append("session_name", sessionName);
+      formData.append("date", date);
+      formData.append("buy_in", buyIn || "0");
+
+      // Add player balances - only for participating players
       Object.entries(playerChips).forEach(([name, chips]) => {
-        formData.append(`balance_${name}`, chips)
-      })
+        if (playerParticipation[name]) {
+          formData.append(`balance_${name}`, chips || "0");
+        }
+      });
   
-      await api.addSession(groupName, formData)
-      router.push(`/group/${groupName}/dashboard`)
+      await api.addSession(groupName, formData);
+      router.push(`/group/${groupName}/dashboard`);
     } catch (err) {
-      console.error("Failed to add session:", err)
-      setError("Failed to add session. Please try again.")
+      console.error("Failed to add session:", err);
+      setError("Failed to add session. Please try again.");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   const handleChipsChange = (playerName: string, value: string) => {
     setPlayerChips((prev) => ({
@@ -131,36 +147,81 @@ export default function AddSessionPage() {
 
   // Calculate total profit/loss
   const calculateTotalProfitLoss = (): number => {
-    if (!buyIn) return 0
-    const buyInAmount = parseFloat(buyIn) || 0
+    const buyInAmount = buyIn ? parseFloat(buyIn) : 0;
     
-    return Object.values(playerChips).reduce((total, chips) => {
-      const chipsAmount = parseFloat(chips) || 0
-      return total + (chipsAmount - buyInAmount)
-    }, 0)
-  }
+    return Object.entries(playerChips).reduce((total, [name, chips]) => {
+      // Skip non-participants
+      if (!playerParticipation[name]) return total;
+      
+      const chipsAmount = chips ? parseFloat(chips) : 0;
+      return total + (chipsAmount - buyInAmount);
+    }, 0);
+  };
 
   // Get profit/loss for a player
   const getPlayerProfitLoss = (playerName: string): number => {
-    const buyInAmount = parseFloat(buyIn) || 0
-    const chipsAmount = parseFloat(playerChips[playerName] || "0")
-    return chipsAmount - buyInAmount
+    if (!playerParticipation[playerName]) return 0;
+    
+    const buyInAmount = buyIn ? parseFloat(buyIn) : 0;
+    const chipsAmount = playerChips[playerName] ? parseFloat(playerChips[playerName]) : 0;
+    return chipsAmount - buyInAmount;
+  };
+
+  // For displaying profit/loss values consistently
+  const formatProfitLoss = (amount: number): string => {
+    // Check if the amount is a whole number (no decimal part)
+    const isWholeNumber = amount === Math.floor(amount);
+    
+    // Format the number - show no decimals for whole numbers, 2 decimals otherwise
+    const formattedAmount = isWholeNumber 
+      ? Math.abs(amount).toString() 
+      : Math.abs(amount).toFixed(2);
+    
+    // Add the appropriate sign and currency symbol
+    return amount >= 0 ? `+€${formattedAmount}` : `-€${formattedAmount}`;
+  };
+
+  // Authentication loading state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <NavBar />
+        <div className="container mx-auto p-4 flex justify-center items-center flex-1">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-6">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-10 w-full mt-4" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
   }
 
+  // Not authenticated state
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>Please log in to add a session</CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button asChild className="w-full">
-              <Link href="/">Sign In</Link>
-            </Button>
-          </CardFooter>
-        </Card>
+      <div className="min-h-screen bg-background flex flex-col">
+        <NavBar />
+        <div className="container mx-auto p-4 flex justify-center items-center flex-1">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Authentication Required</CardTitle>
+              <CardDescription>Please log in to access this page</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => router.push('/?redirect=' + encodeURIComponent(window.location.pathname))}
+                className="w-full"
+              >
+                Login
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
@@ -247,6 +308,7 @@ export default function AddSessionPage() {
                         step="0.01"
                         value={buyIn}
                         onChange={(e) => setBuyIn(e.target.value)}
+                        placeholder="0"  // Added placeholder
                         className="focus:ring-2 focus:ring-primary/50"
                         required
                       />
@@ -339,18 +401,19 @@ export default function AddSessionPage() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-4">
+                      <div className="space-y-1">
                         {group?.players && group.players.length > 0 ? (
                           <>
                             <div className="grid grid-cols-12 gap-2 text-sm font-medium text-muted-foreground mb-2">
-                              <div className="col-span-5 sm:col-span-6">Player</div>
-                              <div className="col-span-4 sm:col-span-3">Final Chips (€)</div>
+                              <div className="col-span-4 sm:col-span-5">Player</div>
+                              <div className="col-span-2 sm:col-span-1">Played</div>
+                              <div className="col-span-3 sm:col-span-3">Final Chips (€)</div>
                               <div className="col-span-3 sm:col-span-3">Profit/Loss</div>
                             </div>
                             
                             {group.players.map((player) => (
                               <div key={player.id} className="grid grid-cols-12 gap-2 items-center">
-                                <div className="col-span-5 sm:col-span-6">
+                                <div className="col-span-4 sm:col-span-5">
                                   <Label 
                                     htmlFor={`chips-${player.id}`}
                                     className="flex items-center gap-2"
@@ -361,39 +424,60 @@ export default function AddSessionPage() {
                                     <span>{player.name}</span>
                                   </Label>
                                 </div>
-                                <div className="col-span-4 sm:col-span-3">
-                                  <Input
-                                    id={`chips-${player.id}`}
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={playerChips[player.name] || "0"}
-                                    onChange={(e) => handleChipsChange(player.name, e.target.value)}
-                                    className="focus:ring-2 focus:ring-primary/50"
-                                    required
-                                  />
+                                
+                                <div className="col-span-2 sm:col-span-1">
+                                  <div className="flex items-center h-full">
+                                    <Switch
+                                      checked={playerParticipation[player.name] || false}
+                                      onCheckedChange={(checked) => {
+                                        setPlayerParticipation(prev => ({
+                                          ...prev,
+                                          [player.name]: checked
+                                        }))
+                                      }}
+                                      aria-label={`${player.name} participated`}
+                                    />
+                                  </div>
                                 </div>
-                                <div className="col-span-3 sm:col-span-3">
-                                  <div className={`px-2 py-1 rounded text-sm font-medium ${
-                                    getPlayerProfitLoss(player.name) > 0
+                              <div className="col-span-3 sm:col-span-3">
+                                <Input
+                                  id={`chips-${player.id}`}
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={playerChips[player.name] || ""}
+                                  onChange={(e) => handleChipsChange(player.name, e.target.value)}
+                                  placeholder="0"
+                                  className="focus:ring-2 focus:ring-primary/50"
+                                  disabled={!playerParticipation[player.name]}
+                                  required={playerParticipation[player.name]}
+                                />
+                              </div>
+                              
+                              <div className="col-span-3 sm:col-span-3">
+                                <div className={`px-2 py-1 rounded text-sm font-medium ${
+                                  !playerParticipation[player.name] 
+                                    ? 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                                    : getPlayerProfitLoss(player.name) > 0
                                       ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
                                       : getPlayerProfitLoss(player.name) < 0
                                         ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
                                         : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-                                  }`}>
-                                    {getPlayerProfitLoss(player.name) > 0 ? '+' : ''}
-                                    €{getPlayerProfitLoss(player.name).toFixed(2)}
-                                  </div>
+                                }`}>
+                                  {!playerParticipation[player.name] 
+                                    ? 'Did not play' 
+                                    : formatProfitLoss(getPlayerProfitLoss(player.name))}
                                 </div>
                               </div>
-                            ))}
-                          </>
-                        ) : (
-                          <div className="text-center py-6 text-muted-foreground">
-                            No players found in this group. Add players before creating a session.
-                          </div>
-                        )}
-                      </div>
+                            </div>
+                          ))}
+                        </>
+                      ) : (
+                        <div className="text-center py-6 text-muted-foreground">
+                          No players found in this group. Add players before creating a session.
+                        </div>
+                      )}
+                    </div>
                     </CardContent>
                     <CardFooter className="flex flex-col sm:flex-row gap-3 pt-6">
                       <Button 
@@ -429,6 +513,11 @@ export default function AddSessionPage() {
           )}
         </div>
       </main>
+      <footer className="border-t border-border/40 mt-auto">
+        <div className="container mx-auto p-4 text-center text-sm text-muted-foreground">
+          <p>© {new Date().getFullYear()} PokerCount. All rights reserved.</p>
+        </div>
+      </footer>
     </div>
   )
 }

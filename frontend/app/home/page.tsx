@@ -23,13 +23,20 @@ interface Group {
 }
 
 export default function HomePage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Authentication check
+    if (!user && !authLoading) {
+      const currentPath = window.location.pathname
+      router.push('/?redirect=' + encodeURIComponent(currentPath))
+      return
+    }
+
     if (!user) return
 
     const fetchGroups = async () => {
@@ -47,16 +54,49 @@ export default function HomePage() {
     }
 
     fetchGroups()
-  }, [user])
+  }, [user, authLoading, router])
 
+  // Authentication loading state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <NavBar />
+        <div className="container mx-auto p-4 flex justify-center items-center flex-1">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-6">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-10 w-full mt-4" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  // Not authenticated state
   if (!user) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
-        <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
-        <p className="mb-6">Please log in to view your poker groups and create new ones.</p>
-        <Button asChild>
-          <Link href="/">Log In</Link>
-        </Button>
+      <div className="min-h-screen bg-background flex flex-col">
+        <NavBar />
+        <div className="container mx-auto p-4 flex justify-center items-center flex-1">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Authentication Required</CardTitle>
+              <CardDescription>Please log in to access this page</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => router.push('/?redirect=' + encodeURIComponent(window.location.pathname))}
+                className="w-full"
+              >
+                Login
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
@@ -66,8 +106,8 @@ export default function HomePage() {
       <NavBar />
       
       <main className="flex-1">
-        <div className="container mx-auto p-4 max-w-4xl">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div className="container mx-auto p-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold">Welcome, {user.username}</h1>
               <p className="text-muted-foreground mt-1">Manage your poker groups</p>
@@ -104,9 +144,9 @@ export default function HomePage() {
               <h2 className="text-xl font-semibold">My Groups</h2>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {loading ? (
-                Array(2).fill(0).map((_, i) => (
+                Array(3).fill(0).map((_, i) => (
                   <Card key={i} className="overflow-hidden border border-border/40">
                     <CardHeader>
                       <Skeleton className="h-6 w-3/4" />
@@ -218,7 +258,7 @@ export default function HomePage() {
       
       <footer className="border-t border-border/40 mt-auto">
         <div className="container mx-auto p-4 text-center text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} Poker Count. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} PokerCount. All rights reserved.</p>
         </div>
       </footer>
     </div>

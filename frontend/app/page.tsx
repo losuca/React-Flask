@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,17 +9,34 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import Link from "next/link"
-import { Eye, EyeOff, LogIn, User, KeyRound } from "lucide-react"
+import { Eye, EyeOff, LogIn, User, KeyRound, CheckCircle } from "lucide-react"
+import  { useRouter, useSearchParams } from "next/navigation"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const { login, loading, error } = useAuth()
+  const { login, loading, error, clearError } = useAuth()
+  const router = useRouter()
+  const [registrationSuccess, setRegistrationSuccess] = useState(false)
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    // Check if user was redirected from registration
+    const registered = searchParams.get('registered')
+    if (registered === 'true') {
+      setRegistrationSuccess(true)
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     await login(username, password)
+  }
+
+  const navigateToRegister = () => {
+    clearError()
+    router.push("/register")
   }
 
   return (
@@ -38,6 +55,15 @@ export default function LoginPage() {
           
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4 pt-4">
+              {registrationSuccess && (
+                  <Alert className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+                    <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    <AlertDescription className="text-green-800 dark:text-green-300">
+                      Account created successfully! You can now log in.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
               {error && (
                 <Alert variant="destructive" className="animate-shake">
                   <AlertDescription className="flex items-center">
@@ -139,9 +165,13 @@ export default function LoginPage() {
               
               <div className="text-center text-sm">
                 Don't have an account?{" "}
-                <Link href="/register" className="text-primary font-medium hover:underline">
+                <button 
+                  type="button"
+                  onClick={navigateToRegister}
+                  className="text-primary font-medium hover:underline"
+                >
                   Create an account
-                </Link>
+                </button>
               </div>
             </CardFooter>
           </form>

@@ -10,16 +10,29 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import Link from "next/link"
 import { Eye, EyeOff, UserPlus, User, KeyRound, AlertTriangle } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 export default function RegisterPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const { register, loading, error } = useAuth()
+  const { register, loading, error, clearError } = useAuth()
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await register(username, password)
+    
+    const result = await register(username, password)
+    
+    if (result?.success) {
+      // Redirect to login page with success message
+      router.push("/?registered=true")
+    }
+  }
+
+  const navigateToLogin = () => {
+    clearError()
+    router.push("/")
   }
 
   return (
@@ -163,16 +176,20 @@ export default function RegisterPage() {
               
               <div className="text-center text-sm">
                 Already have an account?{" "}
-                <Link href="/" className="text-primary font-medium hover:underline">
+                <button 
+                  type="button"
+                  onClick={navigateToLogin}
+                  className="text-primary font-medium hover:underline"
+                >
                   Sign in
-                </Link>
+                </button>
               </div>
             </CardFooter>
           </form>
         </Card>
         
         <div className="text-center mt-8 text-xs text-muted-foreground">
-          <p>© {new Date().getFullYear()} Poker Count. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} PokerCount. All rights reserved.</p>
           <p className="mt-1">By creating an account, you agree to our <Link href="/terms" className="underline hover:text-primary">Terms of Service</Link> and <Link href="/privacy" className="underline hover:text-primary">Privacy Policy</Link>.</p>
         </div>
       </div>

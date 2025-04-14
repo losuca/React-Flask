@@ -1,40 +1,51 @@
 from flask import Flask, jsonify, request, redirect, url_for, session as flask_session
 from models import db, Group, Player, Session, Balance, User, Settlement
 from datetime import datetime, timedelta
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
 from flask_cors import CORS
 import os
+from dotenv import load_dotenv
 import re
 import logging
 from logging.handlers import RotatingFileHandler
 from functools import wraps
 
+# Load environment variables from .env file
+load_dotenv()
+
 app = Flask(__name__)
+
+# PostgreSQL URL handling
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///pokercount.db')
+# Some platforms provide PostgreSQL URLs starting with postgres://, but SQLAlchemy needs postgresql://
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
 # Configuration
 app.config.update(
     SECRET_KEY=os.environ.get('SECRET_KEY', 'generate-a-good-secret-key'),
-    SQLALCHEMY_DATABASE_URI=os.environ.get('DATABASE_URL', 'sqlite:///pokercount.db'),
+    SQLALCHEMY_DATABASE_URI=database_url,
     SQLALCHEMY_TRACK_MODIFICATIONS=False,
-    SESSION_COOKIE_SECURE=False,  # Set to True in production
+    SESSION_COOKIE_SECURE=os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true',
     SESSION_COOKIE_HTTPONLY=True,
     PERMANENT_SESSION_LIFETIME=timedelta(hours=2)
 )
 
 # Initialize extensions
 db.init_app(app)
-# csrf = CSRFProtect(app)
-CORS(app, supports_credentials=True)  # Add CORS support
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"]
-)
+# Enable CSRF in production
+if os.environ.get('FLASK_ENV') == 'production':
+    csrf = CSRFProtect(app)
+
+# Configure CORS
+cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')
+CORS(app, origins=cors_origins.split(','), supports_credentials=True)
 
 # Setup logging
 def configure_logging():
+    log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
+    numeric_level = getattr(logging, log_level, logging.INFO)
+    
     if not app.debug:
         if not os.path.exists('logs'):
             os.mkdir('logs')
@@ -42,9 +53,9 @@ def configure_logging():
         file_handler.setFormatter(logging.Formatter(
             '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
         ))
-        file_handler.setLevel(logging.INFO)
+        file_handler.setLevel(numeric_level)
         app.logger.addHandler(file_handler)
-        app.logger.setLevel(logging.INFO)
+        app.logger.setLevel(numeric_level)
         app.logger.info('Pokercount startup')
     else:
         app.logger.setLevel(logging.ERROR)
@@ -97,7 +108,6 @@ def after_request(response):
 
 # Authentication routes
 @app.route('/', methods=['GET', 'POST'])
-@limiter.limit("5 per minute", methods=["POST"])
 def login():
     if request.method == 'POST':
         data = request.get_json() if request.is_json else request.form
@@ -126,8 +136,22 @@ def login():
             
     return jsonify({'message': 'Please send a POST request to login'})
 
+@app.route('/auth/status')
+def auth_status():
+    if 'user_id' in flask_session:
+        return jsonify({
+            'authenticated': True,
+            'user': {
+                'id': flask_session.get('user_id'),
+                'username': flask_session.get('username')
+            }
+        })
+    else:
+        return jsonify({
+            'authenticated': False
+        })
+
 @app.route('/register', methods=['GET', 'POST'])
-@limiter.limit("20 per hour")
 def register():
     if request.method == 'POST':
         data = request.get_json() if request.is_json else request.form
@@ -161,8 +185,6 @@ def register():
         db.session.add(user)
         db.session.commit()
         
-        flask_session['user_id'] = user.id
-        flask_session['username'] = username
         return jsonify({
             'success': True,
             'user': {
@@ -348,7 +370,6 @@ def join_group(group_name):
             
         player.joined = True
         player.user_id = flask_session['user_id']
-        group.current_user_id = player.id
         db.session.commit()
         
         return jsonify({
@@ -374,14 +395,20 @@ def join_group(group_name):
 @login_required
 def group_dashboard(group_name):
     group = Group.query.filter_by(name=group_name).first_or_404()
-    if not group.current_user_id:
+    
+    # Find the current user's player in this group
+    current_user_player = Player.query.filter_by(
+        user_id=flask_session['user_id'],
+        group_id=group.id,
+        joined=True
+    ).first()
+    
+    if not current_user_player:
         return jsonify({
             'success': False,
             'error': 'You need to join this group first',
             'redirect': f'/join-group/{group_name}'
         }), 400
-    
-    current_user = Player.query.get(group.current_user_id)
     
     return jsonify({
         'group': {
@@ -414,9 +441,9 @@ def group_dashboard(group_name):
         ]
         },
         'current_user': {
-            'id': current_user.id,
-            'name': current_user.name
-        } if current_user else None
+            'id': current_user_player.id,
+            'name': current_user_player.name
+        } 
     })
 
 # Session management routes
@@ -439,13 +466,17 @@ def add_session(group_name):
             db.session.commit()  
             
             for player in group.players:
-                amount = float(data.get(f'balance_{player.name}', 0))
-                balance = Balance(
-                    amount=amount - poker_session.buy_in,
-                    session_id=poker_session.id,
-                    player_id=player.id
-                )
-                db.session.add(balance)
+                balance_key = f'balance_{player.name}'
+                
+                if balance_key in data:
+                    # Only create balance records for players who participated
+                    amount = float(data.get(balance_key, 0))
+                    balance = Balance(
+                        amount=amount - poker_session.buy_in,
+                        session_id=poker_session.id,
+                        player_id=player.id
+                    )
+                    db.session.add(balance)
             
             db.session.commit()
             
@@ -477,6 +508,7 @@ def add_session(group_name):
             ]
         }
     })
+
 
 @app.route('/group/<group_name>/session/<int:session_id>')
 @login_required
@@ -696,6 +728,93 @@ def mark_settlement_as_settled(group_name):
             'success': False,
             'error': 'Failed to mark settlement as settled'
         }), 500
+    
+@app.route('/player/<int:player_id>/stats')
+@login_required
+def player_stats(player_id):
+    player = Player.query.get_or_404(player_id)
+    group = Group.query.get_or_404(player.group_id)
+    
+    # Check if the current user has access to this group
+    current_user_player = Player.query.filter_by(
+        user_id=flask_session['user_id'],
+        group_id=group.id,
+        joined=True
+    ).first()
+    
+    if not current_user_player:
+        return jsonify({
+            'success': False,
+            'error': 'You need to join this group to view player statistics'
+        }), 403
+    
+    # Get all sessions for this group
+    sessions = Session.query.filter_by(group_id=group.id).order_by(Session.date.desc()).all()
+    
+    # Calculate player statistics
+    player_balances = []
+    total_winnings = 0
+    sessions_played = 0
+    winning_sessions = 0
+    biggest_win = 0
+    biggest_loss = 0
+    
+    for session in sessions:
+        # Find this player's balance in the session
+        balance = next((b for b in session.balances if b.player_id == player_id), None)
+        
+        if balance:
+            sessions_played += 1
+            total_winnings += balance.amount
+            
+            if balance.amount > 0:
+                winning_sessions += 1
+                biggest_win = max(biggest_win, balance.amount)
+            elif balance.amount < 0:
+                biggest_loss = min(biggest_loss, balance.amount)
+    
+    # Calculate win rate and average
+    win_rate = round((winning_sessions / sessions_played) * 100) if sessions_played > 0 else 0
+    average_winnings = total_winnings / sessions_played if sessions_played > 0 else 0
+    
+    # Format the response
+    return jsonify({
+        'player': {
+            'id': player.id,
+            'name': player.name,
+            'group_id': player.group_id
+        },
+        'group': {
+            'id': group.id,
+            'name': group.name
+        },
+        'sessions': [
+            {
+                'id': session.id,
+                'name': session.name,
+                'date': session.date.strftime('%Y-%m-%d'),
+                'buy_in': session.buy_in,
+                'balances': [
+                    {
+                        'id': balance.id,
+                        'amount': balance.amount,
+                        'player_id': balance.player_id,
+                        'session_id': balance.session_id
+                    } for balance in session.balances
+                ]
+            } for session in sessions
+        ],
+        'stats': {
+            'totalWinnings': total_winnings,
+            'sessionsPlayed': sessions_played,
+            'winRate': win_rate,
+            'biggestWin': biggest_win,
+            'biggestLoss': biggest_loss,
+            'averageWinnings': average_winnings
+        }
+    })
+
+
 
 # Player management routes
 @app.route('/add_player/<group_name>', methods=['POST'])
@@ -760,7 +879,6 @@ def remove_session(group_name, session_id):
         'success': True
     })
 
-# Database management
 def reset_db():
     with app.app_context():
         db.drop_all()
@@ -768,7 +886,13 @@ def reset_db():
 
 # Application entry point
 if __name__ == '__main__':
-    reset_db()
-    #with app.app_context():
-    #    db.create_all()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Only reset the database in development mode
+    if os.environ.get('FLASK_ENV') == 'development':
+        reset_db()
+    else:
+        with app.app_context():
+            db.create_all()
+            
+    app.run(debug=os.environ.get('FLASK_ENV') == 'development', 
+            host='0.0.0.0', 
+            port=int(os.environ.get('PORT', 5000)))

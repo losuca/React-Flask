@@ -25,7 +25,6 @@ class Group(db.Model):
                             foreign_keys='Player.group_id')
     sessions = db.relationship('Session', backref='group', lazy=True)
     settlements = db.relationship('Settlement', backref='group', lazy=True)
-    current_user_id = db.Column(db.Integer, db.ForeignKey('player.id'))
 
 class Player(db.Model):
     id = db.Column(db.Integer, primary_key=True)

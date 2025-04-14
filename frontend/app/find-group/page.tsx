@@ -24,7 +24,7 @@ interface Group {
 }
 
 export default function FindGroupPage() {
-  const { user } = useAuth()
+  const { user, loading:authLoading } = useAuth()
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [groups, setGroups] = useState<Group[]>([])
@@ -33,6 +33,15 @@ export default function FindGroupPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Authentication check
+    if (!user && !authLoading) {
+      const currentPath = window.location.pathname
+      router.push('/?redirect=' + encodeURIComponent(currentPath))
+      return
+    }
+
+    if (!user) return
+
     const fetchGroups = async () => {
       try {
         setLoading(true)
@@ -49,7 +58,7 @@ export default function FindGroupPage() {
     }
 
     fetchGroups()
-  }, [])
+  }, [user, authLoading, router])
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
@@ -62,14 +71,47 @@ export default function FindGroupPage() {
     }
   }, [searchQuery, groups])
 
+  // Authentication loading state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <NavBar />
+        <div className="container mx-auto p-4 flex justify-center items-center flex-1">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-6">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-10 w-full mt-4" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  // Not authenticated state
   if (!user) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
-        <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
-        <p className="mb-6">Please log in to find and join poker groups.</p>
-        <Button asChild>
-          <Link href="/">Log In</Link>
-        </Button>
+      <div className="min-h-screen bg-background flex flex-col">
+        <NavBar />
+        <div className="container mx-auto p-4 flex justify-center items-center flex-1">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Authentication Required</CardTitle>
+              <CardDescription>Please log in to access this page</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => router.push('/?redirect=' + encodeURIComponent(window.location.pathname))}
+                className="w-full"
+              >
+                Login
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
@@ -97,7 +139,7 @@ export default function FindGroupPage() {
             </Alert>
           )}
 
-          <Card className="mb-6">
+          <Card className="mb-6 overflow-hidden transition-all hover:shadow-md border border-border/40">
             <CardHeader>
               <CardTitle>Search Groups</CardTitle>
               <CardDescription>
@@ -133,9 +175,9 @@ export default function FindGroupPage() {
           </Card>
 
           {loading ? (
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {Array(3).fill(0).map((_, i) => (
-                <Card key={i} className="overflow-hidden">
+                <Card key={i} className="overflow-hidden border border-border/40">
                   <CardHeader>
                     <Skeleton className="h-6 w-3/4" />
                     <Skeleton className="h-4 w-1/2 mt-2" />
@@ -150,9 +192,9 @@ export default function FindGroupPage() {
               ))}
             </div>
           ) : filteredGroups.length > 0 ? (
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredGroups.map((group) => (
-                <Card key={group.id} className="overflow-hidden transition-all hover:shadow-md">
+                <Card key={group.id} className="overflow-hidden transition-all hover:shadow-md border border-border/40">
                   <CardHeader className="pb-2">
                     <CardTitle>{group.name}</CardTitle>
                     <CardDescription className="flex items-center gap-1">
@@ -180,7 +222,7 @@ export default function FindGroupPage() {
               ))}
             </div>
           ) : (
-            <Card className="bg-muted/30 border-dashed">
+            <Card className="bg-muted/30 border-dashed border border-border/40">
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
                   <Info size={24} className="text-muted-foreground" />

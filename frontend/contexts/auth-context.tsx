@@ -13,9 +13,10 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   login: (username: string, password: string) => Promise<void>
-  register: (username: string, password: string) => Promise<void>
+  register: (username: string, password: string) => Promise<{ success: boolean }>
   logout: () => Promise<void>
   error: string | null
+  clearError: () => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -30,17 +31,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check if user is logged in
     const checkAuth = async () => {
       try {
-        const response = await api.getGroups()
-        if (response.user) {
+        const response = await api.checkAuthStatus()
+        if (response.authenticated && response.user) {
           setUser(response.user)
         }
       } catch (err) {
         // Not logged in
+        console.error("Auth check failed:", err)
       } finally {
         setLoading(false)
       }
     }
-
+  
     checkAuth()
   }, [])
 
@@ -58,15 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const register = async (username: string, password: string) => {
+  const register = async (username: string, password: string): Promise<{ success: boolean }> => {
     setLoading(true)
     setError(null)
     try {
       const response = await api.register(username, password)
-      setUser(response.user)
-      router.push("/home")
+      return { success: true}
     } catch (err: any) {
       setError(err.response?.data?.error || "Registration failed")
+      return { success: false }
     } finally {
       setLoading(false)
     }
@@ -85,8 +87,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const clearError = () => {
+    setError(null)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, error }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, error, clearError }}>{children}</AuthContext.Provider>
   )
 }
 

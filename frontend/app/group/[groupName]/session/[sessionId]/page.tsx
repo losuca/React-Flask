@@ -42,13 +42,22 @@ export default function SessionDetailPage() {
   const params = useParams()
   const groupName = params.groupName as string
   const sessionId = params.sessionId as string
-  const { user } = useAuth()
+  const { user, loading:authLoading } = useAuth()
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
+    // Authentication check
+    if (!user && !authLoading) {
+      const currentPath = window.location.pathname
+      router.push('/?redirect=' + encodeURIComponent(currentPath))
+      return
+    }
+
+    if (!user) return
+
     const fetchSession = async () => {
       try {
         setLoading(true)
@@ -64,7 +73,7 @@ export default function SessionDetailPage() {
     }
 
     fetchSession()
-  }, [groupName, sessionId])
+  }, [groupName, sessionId, user, authLoading, router])
 
   const handleDeleteSession = async () => {
     if (!confirm("Are you sure you want to delete this session? This action cannot be undone.")) return
@@ -106,20 +115,61 @@ export default function SessionDetailPage() {
     return losers.length > 0 ? losers[0] : null
   }
 
+  // For displaying profit/loss values consistently
+  const formatProfitLoss = (amount: number): string => {
+    // Check if the amount is a whole number (no decimal part)
+    const isWholeNumber = amount === Math.floor(amount);
+    
+    // Format the number - show no decimals for whole numbers, 2 decimals otherwise
+    const formattedAmount = isWholeNumber 
+      ? Math.abs(amount).toString() 
+      : Math.abs(amount).toFixed(2);
+    
+    // Add the appropriate sign and currency symbol
+    return amount >= 0 ? `+€${formattedAmount}` : `-€${formattedAmount}`;
+  };
+
+  // Authentication loading state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <NavBar />
+        <div className="container mx-auto p-4 flex justify-center items-center flex-1">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-6">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-10 w-full mt-4" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+ // Not authenticated state
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>Please log in to view this session</CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button asChild className="w-full">
-              <Link href="/">Sign In</Link>
-            </Button>
-          </CardFooter>
-        </Card>
+      <div className="min-h-screen bg-background flex flex-col">
+        <NavBar />
+        <div className="container mx-auto p-4 flex justify-center items-center flex-1">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Authentication Required</CardTitle>
+              <CardDescription>Please log in to access this page</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => router.push('/?redirect=' + encodeURIComponent(window.location.pathname))}
+                className="w-full"
+              >
+                Login
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
@@ -171,7 +221,7 @@ export default function SessionDetailPage() {
           ) : session ? (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-1 space-y-6">
-                <Card>
+                <Card className="overflow-hidden transition-all border border-border/40">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xl">{session.name}</CardTitle>
                     <CardDescription className="flex items-center gap-1">
@@ -218,7 +268,7 @@ export default function SessionDetailPage() {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="overflow-hidden transition-all border border-border/40">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg">Session Highlights</CardTitle>
                   </CardHeader>
@@ -235,7 +285,7 @@ export default function SessionDetailPage() {
                           </div>
                         </div>
                         <div className="text-xl font-bold text-green-600 dark:text-green-400">
-                          +€{getTopWinner()?.amount}
+                          {formatProfitLoss(getTopWinner()?.amount || 0)}
                         </div>
                       </div>
                     )}
@@ -252,7 +302,7 @@ export default function SessionDetailPage() {
                           </div>
                         </div>
                         <div className="text-xl font-bold text-red-600 dark:text-red-400">
-                          €{getTopLoser()?.amount}
+                          {formatProfitLoss(getTopLoser()?.amount || 0)}
                         </div>
                       </div>
                     )}
@@ -261,7 +311,7 @@ export default function SessionDetailPage() {
               </div>
 
               <div className="lg:col-span-2">
-                <Card>
+                <Card className="overflow-hidden transition-all border border-border/40">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Users className="h-5 w-5" />
@@ -303,11 +353,12 @@ export default function SessionDetailPage() {
                                       ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' 
                                       : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
                                 }`}>
-                                  {balance.amount >= 0 ? "+" : ""}€{Math.abs(balance.amount)}
+                                  {formatProfitLoss(balance.amount)}
                                 </span>
                               </div>
                             </div>
-                          ))                      ) : (
+                          ))
+                      ) : (
                         <div className="text-center py-6 text-muted-foreground">
                           No player balances recorded for this session
                         </div>
@@ -335,6 +386,12 @@ export default function SessionDetailPage() {
           )}
         </div>
       </main>
+      
+      <footer className="border-t border-border/40 mt-auto">
+        <div className="container mx-auto p-4 text-center text-sm text-muted-foreground">
+          <p>© {new Date().getFullYear()} PokerCount. All rights reserved.</p>
+        </div>
+      </footer>
     </div>
   )
 }

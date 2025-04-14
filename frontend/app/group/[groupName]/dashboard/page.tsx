@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useParams } from "next/navigation"
 import { NavBar } from "@/components/nav-bar"
@@ -52,7 +53,8 @@ interface Group {
 export default function GroupDashboardPage() {
   const params = useParams()
   const groupName = params.groupName as string
-  const { user } = useAuth()
+  const router = useRouter()
+  const { user, loading:authLoading } = useAuth()
   const [group, setGroup] = useState<Group | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -60,6 +62,15 @@ export default function GroupDashboardPage() {
   const [activeTab, setActiveTab] = useState("sessions")
 
   useEffect(() => {
+    // Authentication check
+    if (!user && !authLoading) {
+      const currentPath = window.location.pathname
+      router.push('/?redirect=' + encodeURIComponent(currentPath))
+      return
+    }
+
+    if (!user) return
+
     const fetchGroupData = async () => {
       try {
         setLoading(true)
@@ -76,7 +87,7 @@ export default function GroupDashboardPage() {
     }
 
     fetchGroupData()
-  }, [groupName])
+  }, [groupName, user, authLoading, router])
 
   // Helper functions for calculations
   const calculateTotalMoneyTracked = (sessions: Session[]): number => {
@@ -92,7 +103,7 @@ export default function GroupDashboardPage() {
     if (!topBalance) return "N/A"
     
     const player = group?.players.find(p => p.id === topBalance.player_id)
-    return player ? `${player.name} ($${topBalance.amount})` : "N/A"
+    return player ? `${player.name} (€${topBalance.amount})` : "N/A"
   }
 
   const countPlayerSessions = (playerId: number, sessions: Session[]): number => {
@@ -124,20 +135,47 @@ export default function GroupDashboardPage() {
     return Math.round((winCount / playerSessions.length) * 100)
   }
 
+  // Authentication loading state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <NavBar />
+        <div className="container mx-auto p-4 flex justify-center items-center flex-1">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-6">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-10 w-full mt-4" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  // Not authenticated state
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>Please log in to view this group</CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button asChild className="w-full">
-              <Link href="/">Sign In</Link>
-            </Button>
-          </CardFooter>
-        </Card>
+      <div className="min-h-screen bg-background flex flex-col">
+        <NavBar />
+        <div className="container mx-auto p-4 flex justify-center items-center flex-1">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Authentication Required</CardTitle>
+              <CardDescription>Please log in to access this page</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => router.push('/?redirect=' + encodeURIComponent(window.location.pathname))}
+                className="w-full"
+              >
+                Login
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
@@ -423,6 +461,11 @@ export default function GroupDashboardPage() {
           )}
         </div>
       </main>
+      <footer className="border-t border-border/40 mt-auto">
+        <div className="container mx-auto p-4 text-center text-sm text-muted-foreground">
+          <p>© {new Date().getFullYear()} PokerCount. All rights reserved.</p>
+        </div>
+      </footer>
     </div>
   )
 }

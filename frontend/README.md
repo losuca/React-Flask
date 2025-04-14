@@ -29,8 +29,17 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Environment Variables
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This project uses environment variables for configuration. To set up:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Copy `.env.development` to `.env`
+2. Edit `.env` with your specific configuration values
+3. For production deployment, use `.env.production` with appropriate values
+
+Key environment variables:
+- `FLASK_ENV`: Set to 'development' or 'production'
+- `SECRET_KEY`: A secure random key for session encryption
+- `DATABASE_URL`: Database connection string
+- `SESSION_COOKIE_SECURE`: Set to 'True' in production
+- `CORS_ALLOWED_ORIGINS`: Comma-separated list of allowed origins
