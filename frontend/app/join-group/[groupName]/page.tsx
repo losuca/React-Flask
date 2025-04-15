@@ -49,7 +49,11 @@ export default function JoinGroupPage() {
       try {
         setLoading(true)
         setError(null)
-        const response = await api.joinGroup(groupName)
+        // Get the code from the URL if available
+        const code = typeof window !== 'undefined' 
+          ? new URLSearchParams(window.location.search).get('code') || undefined
+          : undefined;
+        const response = await api.joinGroup(groupName, undefined, code);
         setPlayers(response.players || [])
       } catch (err) {
         console.error("Error fetching players:", err)
@@ -58,7 +62,6 @@ export default function JoinGroupPage() {
         setLoading(false)
       }
     }
-
     if (user) {
       fetchPlayers()
     }
@@ -139,9 +142,9 @@ export default function JoinGroupPage() {
         <div className="container mx-auto p-4 max-w-4xl">
           <div className="flex items-center gap-2 mb-6">
             <Button variant="outline" size="sm" asChild className="mr-2">
-              <Link href="/find-group" className="flex items-center gap-1">
+              <Link href="/home" className="flex items-center gap-1">
                 <ArrowLeft size={16} />
-                <span>Back to Find Group</span>
+                <span>Back to Home</span>
               </Link>
             </Button>
             <h1 className="text-2xl font-bold">Join Group: {decodeURIComponent(groupName)}</h1>
@@ -202,7 +205,7 @@ export default function JoinGroupPage() {
             <CardFooter className="flex justify-between">
               <Button 
                 variant="outline" 
-                onClick={() => router.push('/find-group')}
+                onClick={() => router.push('/home')}
                 disabled={joining || success}
               >
                 Cancel

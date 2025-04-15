@@ -342,6 +342,13 @@ def find_group():
 @login_required
 def join_group(group_name):
     group = Group.query.filter_by(name=group_name).first_or_404()
+
+    code = request.args.get('code')
+    if code and str(group.id) != code:
+        return jsonify({
+            'success': False,
+            'error': "Invalid invitation code"
+        }), 403
     
     # Check if user already has a player in this group
     existing_player = Player.query.filter_by(

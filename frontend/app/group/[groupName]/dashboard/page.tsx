@@ -11,8 +11,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useParams } from "next/navigation"
@@ -28,7 +37,7 @@ import * as api from "@/lib/api"
 import { 
   Users, Calendar, Euro, PlusCircle, BarChart3, 
   Clock, Trophy, AlertCircle, ArrowRight, User, Loader2,
-  CalendarDays, Settings, Share2
+  CalendarDays, Settings, Share2, Copy, Check
 } from "lucide-react"
 
 interface Player {
@@ -76,6 +85,11 @@ export default function GroupDashboardPage() {
   const [showAddPlayerDialog, setShowAddPlayerDialog] = useState(false)
   const [newPlayerName, setNewPlayerName] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // For invite link functionality
+  const [showInviteDialog, setShowInviteDialog] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const inviteLinkRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     // Authentication check
@@ -135,7 +149,6 @@ export default function GroupDashboardPage() {
     }, 0)
   }
   
-
   const calculateWinRate = (playerId: number, sessions: Session[]): number => {
     const playerSessions = sessions.filter(session => 
       session.balances?.some(balance => balance.player_id === playerId) || false
@@ -149,6 +162,22 @@ export default function GroupDashboardPage() {
     }).length
     
     return Math.round((winCount / playerSessions.length) * 100)
+  }
+
+  // Generate invite link
+  const getInviteLink = () => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+    return `${baseUrl}/join-group/${groupName}?code=${group?.id}`
+  }
+
+  // Copy invite link to clipboard
+  const copyInviteLink = () => {
+    if (inviteLinkRef.current) {
+      inviteLinkRef.current.select()
+      document.execCommand('copy')
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   const handleLeaveGroup = async () => {
@@ -297,10 +326,45 @@ export default function GroupDashboardPage() {
                       <span>Settings</span>
                     </Link>
                   </Button>
-                  <Button variant="outline" size="sm" className="flex items-center gap-1">
-                    <Share2 size={16} />
-                    <span>Invite</span>
-                  </Button>
+                  
+                  {/* Invite Dialog */}
+                  <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="flex items-center gap-1">
+                        <Share2 size={16} />
+                        <span>Invite</span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Invite Players to {groupName}</DialogTitle>
+                        <DialogDescription>
+                          Share this link with friends to invite them to join your poker group.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="flex items-center space-x-2">
+                          <Input 
+                            ref={inviteLinkRef}
+                            value={getInviteLink()} 
+                            readOnly 
+                            className="flex-1"
+                          />
+                          <Button 
+                            size="icon" 
+                            onClick={copyInviteLink}
+                            variant="outline"
+                          >
+                            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-2">
+                          Anyone with this link can join your group.
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  
                   <Button variant="outline" size="sm" asChild>
                     <Link href={`/settlements/${groupName}`} className="flex items-center gap-1">
                       <BarChart3 size={16} />
@@ -359,14 +423,15 @@ export default function GroupDashboardPage() {
                 </div>
               </div>
 
-              <AlertDialog open={showAddPlayerDialog} onOpenChange={setShowAddPlayerDialog}>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Add New Player</AlertDialogTitle>
-                    <AlertDialogDescription>
+              {/* Changed from AlertDialog to Dialog for adding a player */}
+              <Dialog open={showAddPlayerDialog} onOpenChange={setShowAddPlayerDialog}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Player</DialogTitle>
+                    <DialogDescription>
                       Enter the name of the player you want to add to this group.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
+                    </DialogDescription>
+                  </DialogHeader>
                   <div className="py-4">
                     <Input
                       placeholder="Player name"
@@ -374,9 +439,14 @@ export default function GroupDashboardPage() {
                       onChange={(e) => setNewPlayerName(e.target.value)}
                     />
                   </div>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction 
+                  <DialogFooter>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowAddPlayerDialog(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
                       onClick={handleAddPlayer}
                       disabled={isSubmitting || !newPlayerName.trim()}
                     >
@@ -388,10 +458,10 @@ export default function GroupDashboardPage() {
                       ) : (
                         "Add Player"
                       )}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
               {error && (
                 <Alert variant="destructive" className="mb-6">
@@ -598,7 +668,10 @@ export default function GroupDashboardPage() {
                       <p className="text-muted-foreground mb-6 max-w-md mx-auto">
                         Invite players to join your poker group.
                       </p>
-                      <Button className="flex items-center gap-2">
+                      <Button 
+                        className="flex items-center gap-2"
+                        onClick={() => setShowInviteDialog(true)}
+                      >
                         <Share2 size={16} />
                         Invite Players
                       </Button>
@@ -618,3 +691,4 @@ export default function GroupDashboardPage() {
     </div>
   )
 }
+

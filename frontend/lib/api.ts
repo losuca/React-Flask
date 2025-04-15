@@ -58,12 +58,18 @@ export const findGroup = async (groupName: string) => {
   return response.data
 }
 
-export const joinGroup = async (groupName: string, playerId?: string) => {
+export const joinGroup = async (groupName: string, playerId?: string, code?: string) => {
   if (playerId) {
     const response = await api.post(`/join_group/${groupName}`, { selected_player: playerId })
     return response.data
   }
-  const response = await api.get(`/join_group/${groupName}`)
+  // If code is provided, add it as a query parameter
+  let url = `/join_group/${groupName}`;
+  if (code) {
+    url += `?code=${code}`;
+  }
+  
+  const response = await api.get(url)
   return response.data
 }
 

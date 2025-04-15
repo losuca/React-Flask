@@ -3,7 +3,17 @@
 import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { useToast } from "@/components/ui/use-toast"
+import { Link as LinkIcon, Loader2 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { NavBar } from "@/components/nav-bar"
 import { Button } from "@/components/ui/button"
@@ -13,8 +23,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import * as api from "@/lib/api"
 import { 
   Plus, Search, Users, ArrowRight, AlertCircle, 
-  Calendar, Euro
+  Calendar, Euro, UserPlus
 } from "lucide-react"
+import { Input } from "@/components/ui/input"
 
 interface Group {
   id: number
@@ -28,6 +39,10 @@ export default function HomePage() {
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showJoinDialog, setShowJoinDialog] = useState(false)
+  const [inviteUrl, setInviteUrl] = useState("")
+  const [processingUrl, setProcessingUrl] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     // Authentication check
@@ -55,6 +70,44 @@ export default function HomePage() {
 
     fetchGroups()
   }, [user, authLoading, router])
+
+  const handleJoinViaUrl = () => {
+    try {
+      setProcessingUrl(true)
+      
+      // Parse the URL to extract group name
+      const url = new URL(inviteUrl);
+      const pathParts = url.pathname.split('/');
+      const groupNameIndex = pathParts.findIndex(part => part === 'join-group') + 1;
+      
+      if (groupNameIndex <= 0 || groupNameIndex >= pathParts.length) {
+        throw new Error("Invalid URL format");
+      }
+      
+      const groupName = pathParts[groupNameIndex];
+      
+      if (!groupName) {
+        throw new Error("Missing group name");
+      }
+      
+      // Close the dialog
+      setShowJoinDialog(false);
+      setInviteUrl("");
+      
+      // Redirect to the join-group page
+      router.push(`/join-group/${groupName}`);
+      
+    } catch (err) {
+      console.error("Failed to process invite URL:", err);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Invalid invite URL format. Please check and try again.",
+      });
+    } finally {
+      setProcessingUrl(false);
+    }
+  };
 
   // Authentication loading state
   if (authLoading) {
@@ -123,11 +176,11 @@ export default function HomePage() {
               </Button>
               <Button 
                 variant="outline"
-                onClick={() => router.push('/find-group')}
+                onClick={() => setShowJoinDialog(true)}
                 className="flex items-center gap-2"
               >
-                <Search size={16} />
-                Find Group
+                <LinkIcon size={16} />
+                Join Group
               </Button>
             </div>
           </div>
@@ -237,22 +290,68 @@ export default function HomePage() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-muted-foreground">
-                      Search for existing groups to join and track your games.
+                      Join an existing group using an invite link.
                     </p>
                   </CardContent>
                   <CardFooter>
                     <Button 
                       variant="outline"
-                      onClick={() => router.push('/find-group')}
-                      className="w-full"
+                      onClick={() => setShowJoinDialog(true)}
+                      className="w-full flex items-center gap-2"
                     >
-                      Find Groups
+                      <LinkIcon size={16} />
+                      Join Group
                     </Button>
                   </CardFooter>
                 </Card>
               </div>
             </section>
           )}
+          <Dialog open={showJoinDialog} onOpenChange={setShowJoinDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Join a Group</DialogTitle>
+                <DialogDescription>
+                  Paste an invite URL to join a poker group
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <label className="text-sm font-medium mb-2 block">
+                  Invite URL
+                </label>
+                <Input
+                  placeholder="https://example.com/join-group/group-name"
+                  value={inviteUrl}
+                  onChange={(e) => setInviteUrl(e.target.value)}
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  You'll be redirected to select your player after submitting.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowJoinDialog(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleJoinViaUrl}
+                  disabled={!inviteUrl || processingUrl}
+                >
+                  {processingUrl ? (
+                    <>
+                      <Loader2 size={16} className="mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    "Join Group"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </main>
       
