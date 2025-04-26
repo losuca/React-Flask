@@ -99,6 +99,12 @@ export const markSettlementAsSettled = async (groupName: string, settlementId: s
   return response.data
 }
 
+export const updateSession = async (groupName: string, sessionId: number, sessionData: any) => {
+  const response = await api.post(`/update_session/${groupName}/${sessionId}`, sessionData)
+  return response.data
+}
+
+
 // Player endpoints
 export const addPlayer = async (groupName: string, playerName: string) => {
   const response = await api.post(`/add_player/${groupName}`, { player_name: playerName })

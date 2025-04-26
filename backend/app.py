@@ -541,6 +541,72 @@ def view_session(group_name, session_id):
         }
     })
 
+@app.route('/update_session/<group_name>/<int:session_id>', methods=['POST'])
+@login_required
+def update_session(group_name, session_id):
+    group = Group.query.filter_by(name=group_name).first_or_404()
+    session = Session.query.get_or_404(session_id)
+    
+    # Check if session belongs to the group
+    if session.group_id != group.id:
+        return jsonify({
+            'success': False,
+            'error': 'Session does not belong to this group'
+        }), 400
+    
+    data = request.get_json() if request.is_json else request.form
+    
+    try:
+        # Update session details
+        session.name = data.get('session_name', session.name)
+        session.date = datetime.strptime(data.get('date'), '%Y-%m-%d')
+        session.buy_in = float(data.get('buy_in', session.buy_in))
+        
+        # Update balances
+        for player in group.players:
+            balance_key = f'balance_{player.name}'
+            
+            if balance_key in data:
+                # Get the existing balance or create a new one
+                balance = Balance.query.filter_by(
+                    session_id=session.id,
+                    player_id=player.id
+                ).first()
+                
+                if balance:
+                    # Calculate the new balance (cash-out minus buy-in)
+                    cash_out = float(data.get(balance_key, 0))
+                    balance.amount = cash_out - session.buy_in
+                else:
+                    # Create a new balance if player was added
+                    cash_out = float(data.get(balance_key, 0))
+                    balance = Balance(
+                        amount=cash_out - session.buy_in,
+                        session_id=session.id,
+                        player_id=player.id
+                    )
+                    db.session.add(balance)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'session': {
+                'id': session.id,
+                'name': session.name,
+                'date': session.date.strftime('%Y-%m-%d'),
+                'buy_in': session.buy_in
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error updating session: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
+
+
 @app.route('/settlements/<group_name>')
 @login_required
 def show_settlements(group_name):
