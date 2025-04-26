@@ -21,7 +21,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useParams } from "next/navigation"
@@ -37,8 +37,10 @@ import * as api from "@/lib/api"
 import { 
   Users, Calendar, Euro, PlusCircle, BarChart3, 
   Clock, Trophy, AlertCircle, ArrowRight, User, Loader2,
-  CalendarDays, Settings, Share2, Copy, Check
+  CalendarDays, Settings, Share2, Copy, Check, Search,
+  ArrowUp, ArrowDown, Text, SortAsc, SortDesc
 } from "lucide-react"
+import { useSearch } from "@/hooks/use-search"
 
 interface Player {
   id: number
@@ -90,6 +92,20 @@ export default function GroupDashboardPage() {
   const [showInviteDialog, setShowInviteDialog] = useState(false)
   const [copied, setCopied] = useState(false)
   const inviteLinkRef = useRef<HTMLInputElement>(null)
+
+  // Use the custom search hooks
+  const sessionSearch = useSearch<Session>(
+    group?.sessions || [], 
+    (session, query) => 
+      session.name.toLowerCase().includes(query) || 
+      new Date(session.date).toLocaleDateString().includes(query) ||
+      session.buy_in.toString().includes(query)
+  )
+  
+  const playerSearch = useSearch<Player>(
+    group?.players || [],
+    (player, query) => player.name.toLowerCase().includes(query)
+  )
 
   useEffect(() => {
     // Authentication check
@@ -235,6 +251,95 @@ export default function GroupDashboardPage() {
       setIsSubmitting(false)
     }
   }
+
+    // Sorting state
+    const [sessionSortField, setSessionSortField] = useState<string>("date")
+    const [sessionSortDirection, setSessionSortDirection] = useState<"asc" | "desc">("desc")
+    const [playerSortField, setPlayerSortField] = useState<string>("name")
+    const [playerSortDirection, setPlayerSortDirection] = useState<"asc" | "desc">("asc")
+  
+    // Sorting handlers
+    const handleSessionSort = (field: string) => {
+      if (sessionSortField === field) {
+        // Toggle direction if clicking the same field
+        setSessionSortDirection(sessionSortDirection === "asc" ? "desc" : "asc")
+      } else {
+        // Set new field and default direction
+        setSessionSortField(field)
+        // Default to descending for date and buy-in, ascending for name
+        setSessionSortDirection(field === "name" ? "asc" : "desc")
+      }
+    }
+  
+    const handlePlayerSort = (field: string) => {
+      if (playerSortField === field) {
+        // Toggle direction if clicking the same field
+        setPlayerSortDirection(playerSortDirection === "asc" ? "desc" : "asc")
+      } else {
+        // Set new field and default direction
+        setPlayerSortField(field)
+        // Default to descending for winnings and win rate, ascending for name
+        setPlayerSortDirection(field === "name" ? "asc" : "desc")
+      }
+    }
+  
+    // Sorted lists
+    const sortedSessions = useMemo(() => {
+      if (!sessionSearch.filteredItems) return []
+      
+      return [...sessionSearch.filteredItems].sort((a, b) => {
+        let comparison = 0
+        
+        switch (sessionSortField) {
+          case "date":
+            comparison = new Date(a.date).getTime() - new Date(b.date).getTime()
+            break
+          case "name":
+            comparison = a.name.localeCompare(b.name)
+            break
+          case "buy_in":
+            comparison = a.buy_in - b.buy_in
+            break
+          case "players":
+            comparison = (a.balances?.length || 0) - (b.balances?.length || 0)
+            break
+          default:
+            comparison = 0
+        }
+        
+        return sessionSortDirection === "asc" ? comparison : -comparison
+      })
+    }, [sessionSearch.filteredItems, sessionSortField, sessionSortDirection])
+  
+    const sortedPlayers = useMemo(() => {
+      if (!playerSearch.filteredItems) return []
+      
+      return [...playerSearch.filteredItems].sort((a, b) => {
+        let comparison = 0
+        
+        switch (playerSortField) {
+          case "name":
+            comparison = a.name.localeCompare(b.name)
+            break
+          case "sessions":
+            comparison = countPlayerSessions(a.id, group?.sessions || []) - 
+                        countPlayerSessions(b.id, group?.sessions || [])
+            break
+          case "winnings":
+            comparison = getPlayerTotalWinnings(a.id, group?.sessions || []) - 
+                        getPlayerTotalWinnings(b.id, group?.sessions || [])
+            break
+          case "winRate":
+            comparison = calculateWinRate(a.id, group?.sessions || []) - 
+                        calculateWinRate(b.id, group?.sessions || [])
+            break
+          default:
+            comparison = 0
+        }
+        
+        return playerSortDirection === "asc" ? comparison : -comparison
+      })
+    }, [playerSearch.filteredItems, playerSortField, playerSortDirection, group?.sessions])
 
   const formatProfitLoss = (amount: number): string => {
     // Check if the amount is a whole number (no decimal part)
@@ -548,55 +653,133 @@ export default function GroupDashboardPage() {
                 
                 <TabsContent value="sessions">
                   {group?.sessions && group.sessions.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {group.sessions.map((session) => (
-                        <Card key={session.id} className="overflow-hidden transition-all hover:shadow-md border border-border/40">
-                          <div className="bg-primary h-2 w-full"></div>
-                          <CardHeader className="pb-2">
-                            <div className="flex justify-between items-start">
-                              <CardTitle>{session.name}</CardTitle>
-                              <Badge variant="outline">
-                                €{session.buy_in}
-                              </Badge>
-                            </div>
-                            <CardDescription className="flex items-center gap-1">
-                              <CalendarDays size={14} />
-                              {new Date(session.date).toLocaleDateString('en-US', {
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric'
-                              })}
-                            </CardDescription>
-                          </CardHeader>
-                          <CardContent className="pb-2">
-                            <div className="space-y-2">
-                              <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Players:</span>
-                                <span className="font-medium">{session.balances?.length || 0}</span>
+                    <>
+                      {/* Search input */}
+                      <div className="relative mb-4">
+                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted-foreground">
+                          <Search size={16} />
+                        </div>
+                        <Input
+                          type="text"
+                          placeholder="Search sessions by name, date or buy-in..."
+                          className="pl-10 bg-background/50 border-border/40"
+                          value={sessionSearch.query}
+                          onChange={(e) => sessionSearch.setQuery(e.target.value)}
+                        />
+                      </div>
+                      
+                      {/* Session sorting buttons */}
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        <span className="text-sm text-muted-foreground self-center mr-2">Sort by:</span>
+                        <Button 
+                          variant={sessionSortField === "date" ? "default" : "outline"} 
+                          size="sm"
+                          onClick={() => handleSessionSort("date")}
+                          className="flex items-center gap-1"
+                        >
+                          <Calendar size={14} />
+                          Date
+                          {sessionSortField === "date" && (
+                            sessionSortDirection === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                          )}
+                        </Button>
+                        
+                        <Button 
+                          variant={sessionSortField === "name" ? "default" : "outline"} 
+                          size="sm"
+                          onClick={() => handleSessionSort("name")}
+                          className="flex items-center gap-1"
+                        >
+                          <Text size={14} />
+                          Name
+                          {sessionSortField === "name" && (
+                            sessionSortDirection === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                          )}
+                        </Button>
+                        
+                        <Button 
+                          variant={sessionSortField === "buy_in" ? "default" : "outline"} 
+                          size="sm"
+                          onClick={() => handleSessionSort("buy_in")}
+                          className="flex items-center gap-1"
+                        >
+                          <Euro size={14} />
+                          Buy-in
+                          {sessionSortField === "buy_in" && (
+                            sessionSortDirection === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                          )}
+                        </Button>
+                        
+                        <Button 
+                          variant={sessionSortField === "players" ? "default" : "outline"} 
+                          size="sm"
+                          onClick={() => handleSessionSort("players")}
+                          className="flex items-center gap-1"
+                        >
+                          <Users size={14} />
+                          Players
+                          {sessionSortField === "players" && (
+                            sessionSortDirection === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                          )}
+                        </Button>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {sortedSessions.map((session) => (
+                          <Card key={session.id} className="overflow-hidden transition-all hover:shadow-md border border-border/40">
+                            <div className="bg-primary h-2 w-full"></div>
+                            <CardHeader className="pb-2">
+                              <div className="flex justify-between items-start">
+                                <CardTitle>{session.name}</CardTitle>
+                                <Badge variant="outline">
+                                  €{session.buy_in}
+                                </Badge>
                               </div>
-                              <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Total Pot:</span>
-                                <span className="font-medium">€{session.buy_in * (session.balances?.length || 0)}</span>
+                              <CardDescription className="flex items-center gap-1">
+                                <CalendarDays size={14} />
+                                {new Date(session.date).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric'
+                                })}
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent className="pb-2">
+                              <div className="space-y-2">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">Players:</span>
+                                  <span className="font-medium">{session.balances?.length || 0}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">Total Pot:</span>
+                                  <span className="font-medium">€{session.buy_in * (session.balances?.length || 0)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">Top Winner:</span>
+                                  <span className="font-medium">
+                                    {getTopWinner(session.balances || [])}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Top Winner:</span>
-                                <span className="font-medium">
-                                  {getTopWinner(session.balances || [])}
-                                </span>
-                              </div>
-                            </div>
-                          </CardContent>
-                          <CardFooter>
-                            <Button asChild className="w-full gap-1">
+                            </CardContent>
+                            <CardFooter>
+                              <Button asChild className="w-full gap-1">
                               <Link href={`/group/${groupName}/session/${session.id}`}>
-                                View Details
-                                <ArrowRight size={16} />
-                              </Link>
-                            </Button>
-                          </CardFooter>
-                        </Card>
-                      ))}
-                    </div>
+                                  View Details
+                                  <ArrowRight size={16} />
+                                </Link>
+                              </Button>
+                            </CardFooter>
+                          </Card>
+                        ))}
+                      </div>
+                      
+                      {sortedSessions.length === 0 && sessionSearch.query && (
+                        <div className="text-center py-8 text-muted-foreground">
+                          No sessions match your search
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="bg-muted/30 rounded-lg p-8 text-center border border-dashed border-muted-foreground/30">
                       <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -618,60 +801,138 @@ export default function GroupDashboardPage() {
                 
                 <TabsContent value="players">
                   {group?.players && group.players.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {group.players.map((player) => (
-                        <Card key={player.id} className={`overflow-hidden transition-all hover:shadow-md border ${
-                          player.id === currentUser?.id ? 'border-primary/50 bg-primary/5' : 'border-border/40'
-                        }`}>
-                          <CardHeader className="pb-2">
-                            <div className="flex justify-between items-start">
-                              <CardTitle className="flex items-center gap-2">
-                                <User className="h-5 w-5 text-primary" />
-                                {player.name}
-                              </CardTitle>
-                              {player.id === currentUser?.id && (
-                                <Badge variant="secondary">You</Badge>
-                              )}
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-3">
-                              <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Sessions Played:</span>
-                                <span className="font-medium">
-                                  {countPlayerSessions(player.id, group?.sessions || [])}
-                                </span>
+                    <>
+                      {/* Search input */}
+                      <div className="relative mb-4">
+                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted-foreground">
+                          <Search size={16} />
+                        </div>
+                        <Input
+                          type="text"
+                          placeholder="Search players by name..."
+                          className="pl-10 bg-background/50 border-border/40"
+                          value={playerSearch.query}
+                          onChange={(e) => playerSearch.setQuery(e.target.value)}
+                        />
+                      </div>
+                      
+                      {/* Player sorting buttons */}
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        <span className="text-sm text-muted-foreground self-center mr-2">Sort by:</span>
+                        <Button 
+                          variant={playerSortField === "name" ? "default" : "outline"} 
+                          size="sm"
+                          onClick={() => handlePlayerSort("name")}
+                          className="flex items-center gap-1"
+                        >
+                          <User size={14} />
+                          Name
+                          {playerSortField === "name" && (
+                            playerSortDirection === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                          )}
+                        </Button>
+                        
+                        <Button 
+                          variant={playerSortField === "sessions" ? "default" : "outline"} 
+                          size="sm"
+                          onClick={() => handlePlayerSort("sessions")}
+                          className="flex items-center gap-1"
+                        >
+                          <Calendar size={14} />
+                          Sessions
+                          {playerSortField === "sessions" && (
+                            playerSortDirection === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                          )}
+                        </Button>
+                        
+                        <Button 
+                          variant={playerSortField === "winnings" ? "default" : "outline"} 
+                          size="sm"
+                          onClick={() => handlePlayerSort("winnings")}
+                          className="flex items-center gap-1"
+                        >
+                          <Euro size={14} />
+                          Winnings
+                          {playerSortField === "winnings" && (
+                            playerSortDirection === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                          )}
+                        </Button>
+                        
+                        <Button 
+                          variant={playerSortField === "winRate" ? "default" : "outline"} 
+                          size="sm"
+                          onClick={() => handlePlayerSort("winRate")}
+                          className="flex items-center gap-1"
+                        >
+                          <BarChart3 size={14} />
+                          Win Rate
+                          {playerSortField === "winRate" && (
+                            playerSortDirection === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                          )}
+                        </Button>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {sortedPlayers.map((player) => (
+                          <Card key={player.id} className={`overflow-hidden transition-all hover:shadow-md border ${
+                            player.id === currentUser?.id ? 'border-primary/50 bg-primary/5' : 'border-border/40'
+                          }`}>
+                            <CardHeader className="pb-2">
+                              <div className="flex justify-between items-start">
+                                <CardTitle className="flex items-center gap-2">
+                                  <User className="h-5 w-5 text-primary" />
+                                  {player.name}
+                                </CardTitle>
+                                {player.id === currentUser?.id && (
+                                  <Badge variant="secondary">You</Badge>
+                                )}
                               </div>
-                              <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Total Winnings:</span>
-                                <span className={`font-medium ${
-                                  getPlayerTotalWinnings(player.id, group?.sessions || []) > 0 
-                                    ? 'text-green-600' 
-                                    : getPlayerTotalWinnings(player.id, group?.sessions || []) < 0 
-                                      ? 'text-red-600' 
-                                      : ''
-                                }`}>
-                                  {formatProfitLoss(getPlayerTotalWinnings(player.id, group?.sessions || []))}
-                                </span>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-3">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">Sessions Played:</span>
+                                  <span className="font-medium">
+                                    {countPlayerSessions(player.id, group?.sessions || [])}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">Total Winnings:</span>
+                                  <span className={`font-medium ${
+                                    getPlayerTotalWinnings(player.id, group?.sessions || []) > 0 
+                                      ? 'text-green-600' 
+                                      : getPlayerTotalWinnings(player.id, group?.sessions || []) < 0 
+                                        ? 'text-red-600' 
+                                        : ''
+                                  }`}>
+                                    {formatProfitLoss(getPlayerTotalWinnings(player.id, group?.sessions || []))}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">Win Rate:</span>
+                                  <span className="font-medium">
+                                    {calculateWinRate(player.id, group?.sessions || [])}%
+                                  </span>
+                                </div>
                               </div>
-                              <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Win Rate:</span>
-                                <span className="font-medium">
-                                  {calculateWinRate(player.id, group?.sessions || [])}%
-                                </span>
-                              </div>
-                            </div>
-                          </CardContent>
-                          <CardFooter>
-                            <Button variant="outline" asChild className="w-full">
-                              <Link href={`/player/${player.id}/stats`}>
-                                View Stats
-                              </Link>
-                            </Button>
-                          </CardFooter>
-                        </Card>
-                      ))}
-                    </div>
+                            </CardContent>
+                            <CardFooter>
+                              <Button variant="outline" asChild className="w-full">
+                                <Link href={`/player/${player.id}/stats`}>
+                                  View Stats
+                                </Link>
+                              </Button>
+                            </CardFooter>
+                          </Card>
+                        ))}
+                      </div>
+                      
+                      {sortedPlayers.length === 0 && playerSearch.query && (
+                        <div className="text-center py-8 text-muted-foreground">
+                          No players match your search
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="bg-muted/30 rounded-lg p-8 text-center border border-dashed border-muted-foreground/30">
                       <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -704,4 +965,5 @@ export default function GroupDashboardPage() {
     </div>
   )
 }
+
 
