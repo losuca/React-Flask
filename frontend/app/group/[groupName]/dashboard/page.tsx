@@ -236,6 +236,19 @@ export default function GroupDashboardPage() {
     }
   }
 
+  const formatProfitLoss = (amount: number): string => {
+    // Check if the amount is a whole number (no decimal part)
+    const isWholeNumber = amount === Math.floor(amount);
+    
+    // Format the number - show no decimals for whole numbers, 2 decimals otherwise
+    const formattedAmount = isWholeNumber 
+      ? Math.abs(amount).toString() 
+      : Math.abs(amount).toFixed(2);
+    
+    // Add the appropriate sign and currency symbol
+    return amount >= 0 ? `+€${formattedAmount}` : `-€${formattedAmount}`;
+  };
+
   // Authentication loading state
   if (authLoading) {
     return (
@@ -638,7 +651,7 @@ export default function GroupDashboardPage() {
                                       ? 'text-red-600' 
                                       : ''
                                 }`}>
-                                  €{getPlayerTotalWinnings(player.id, group?.sessions || [])}
+                                  {formatProfitLoss(getPlayerTotalWinnings(player.id, group?.sessions || []))}
                                 </span>
                               </div>
                               <div className="flex justify-between text-sm">
