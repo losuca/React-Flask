@@ -149,7 +149,13 @@ export default function GroupDashboardPage() {
     if (!topBalance) return "N/A"
     
     const player = group?.players.find(p => p.id === topBalance.player_id)
-    return player ? `${player.name} (€${topBalance.amount})` : "N/A"
+    
+    // Format the amount to avoid floating point precision issues
+    const formattedAmount = topBalance.amount === Math.floor(topBalance.amount)
+      ? topBalance.amount.toString()
+      : topBalance.amount.toFixed(2)
+    
+    return player ? `${player.name} (€${formattedAmount})` : "N/A"
   }
 
   const countPlayerSessions = (playerId: number, sessions: Session[]): number => {
