@@ -708,7 +708,7 @@ def show_settlements(group_name):
         from_player = Player.query.get(settlement.from_player_id)
         to_player = Player.query.get(settlement.to_player_id)
         
-        text = f"{from_player.name} pays {to_player.name} ${settlement.amount:.2f}"
+        text = f"{from_player.name} pays {to_player.name} €{settlement.amount:.2f}"
         if settlement.settled:
             text += " (Settled)"
             
