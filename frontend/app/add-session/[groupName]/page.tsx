@@ -304,6 +304,7 @@ export default function AddSessionPage() {
                       <Input
                         id="buy-in"
                         type="number"
+                        inputMode="decimal"
                         min="0"
                         step="0.01"
                         value={buyIn}
@@ -443,6 +444,7 @@ export default function AddSessionPage() {
                                 <Input
                                   id={`chips-${player.id}`}
                                   type="number"
+                                  inputMode="decimal"
                                   step="0.01"
                                   min="0"
                                   value={playerChips[player.name] || ""}
