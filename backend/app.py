@@ -63,6 +63,92 @@ def configure_logging():
 configure_logging()
 
 # Helper functions
+def calculate_settlements_for_group(group_id):
+    """Calculate settlements for all players in a group"""
+    group = Group.query.get(group_id)
+    if not group:
+        return
+        
+    # Calculate raw balances for ALL players who have participated in sessions
+    raw_balances = {}
+    
+    # First, get all players who have balances in any session
+    for session in group.sessions:
+        for balance in session.balances:
+            player_id = balance.player_id
+            if player_id not in raw_balances:
+                raw_balances[player_id] = 0
+            raw_balances[player_id] += balance.amount
+    
+    # If there are no balances, nothing to do
+    if not raw_balances:
+        return
+    
+    # Adjust for existing settled settlements
+    adjusted_balances = raw_balances.copy()
+    settled_settlements = Settlement.query.filter(
+        Settlement.group_id == group_id,
+        Settlement.settled == True
+    ).all()
+    
+    for settlement in settled_settlements:
+        adjusted_balances[settlement.from_player_id] += settlement.amount
+        adjusted_balances[settlement.to_player_id] -= settlement.amount
+    
+    # Delete all unsettled settlements for this group
+    unsettled = Settlement.query.filter(
+        Settlement.group_id == group_id,
+        Settlement.settled == False
+    ).all()
+    
+    for settlement in unsettled:
+        db.session.delete(settlement)
+    
+    # Create new settlements using the simplified debt resolution algorithm
+    creditors = [(pid, bal) for pid, bal in adjusted_balances.items() if bal > 0]
+    debtors = [(pid, abs(bal)) for pid, bal in adjusted_balances.items() if bal < 0]
+    
+    # Sort by amount (largest first)
+    creditors.sort(key=lambda x: x[1], reverse=True)
+    debtors.sort(key=lambda x: x[1], reverse=True)
+    
+    # Match debtors with creditors
+    i, j = 0, 0
+    while i < len(debtors) and j < len(creditors):
+        debtor_id, debtor_amount = debtors[i]
+        creditor_id, creditor_amount = creditors[j]
+        
+        if debtor_amount <= 0 or creditor_amount <= 0:
+            break
+            
+        payment = min(debtor_amount, creditor_amount)
+        if payment > 0:
+            debtor_player = Player.query.get(debtor_id)
+            creditor_player = Player.query.get(creditor_id)
+            
+            settlement = Settlement(
+                from_player_id=debtor_id,
+                to_player_id=creditor_id,
+                amount=payment,
+                description=f"{debtor_player.name} pays {creditor_player.name}",
+                group_id=group_id
+            )
+            db.session.add(settlement)
+            
+            # Update remaining amounts
+            debtors[i] = (debtor_id, debtor_amount - payment)
+            creditors[j] = (creditor_id, creditor_amount - payment)
+        
+        # Move to next player if their balance is settled
+        if debtors[i][1] <= 0.01:  # Use small threshold to handle floating point errors
+            i += 1
+        if creditors[j][1] <= 0.01:
+            j += 1
+    
+    db.session.commit()
+
+
+
 def is_password_valid(password):
     """
     Password must be at least 8 characters long and contain:
@@ -486,6 +572,8 @@ def add_session(group_name):
                     db.session.add(balance)
             
             db.session.commit()
+
+            calculate_settlements_for_group(group.id)
             
             return jsonify({
                 'success': True,
@@ -611,7 +699,7 @@ def update_session(group_name, session_id):
 @login_required
 def show_settlements(group_name):
     group = Group.query.filter_by(name=group_name).first_or_404()
-
+    
     # Get the logged-in user's player record for this group
     current_player = Player.query.filter_by(
         user_id=flask_session['user_id'],
@@ -625,77 +713,20 @@ def show_settlements(group_name):
             'error': 'You need to join this group first'
         }), 400
     
-    # Calculate total balances for all players from all sessions
-    raw_balances = {}
-    for player in group.players:
-        total = sum(balance.amount for session in group.sessions
-                   for balance in session.balances if balance.player_id == player.id)
-        raw_balances[player.id] = total
+    # Calculate raw balance for display
+    raw_balance = sum(balance.amount for session in group.sessions
+                     for balance in session.balances if balance.player_id == current_player.id)
     
-    # Get all existing settlements for this group
-    all_group_settlements = Settlement.query.filter(
-        Settlement.group_id == group.id,
-        Settlement.settled == True  # Only consider settled settlements
-    ).all()
+    # Check if we need to calculate settlements (if none exist for this group)
+    existing_settlements = Settlement.query.filter(
+        Settlement.group_id == group.id
+    ).first()
     
-    # Create adjusted balances by accounting for settled amounts
-    adjusted_balances = raw_balances.copy()
+    if not existing_settlements:
+        # Calculate settlements for all players
+        calculate_settlements_for_group(group.id)
     
-    # Adjust balances based on settled settlements
-    for settlement in all_group_settlements:
-        # When someone has paid money, their balance increases
-        adjusted_balances[settlement.from_player_id] += settlement.amount
-        # When someone has received money, their balance decreases
-        adjusted_balances[settlement.to_player_id] -= settlement.amount
-    
-    # Delete any unsettled settlements for the current player - we'll recalculate these
-    unsettled = Settlement.query.filter(
-        ((Settlement.from_player_id == current_player.id) | 
-        (Settlement.to_player_id == current_player.id)),
-        Settlement.group_id == group.id,
-        Settlement.settled == False
-    ).all()
-    
-    for settlement in unsettled:
-        db.session.delete(settlement)
-    
-    db.session.commit()
-    
-    # Create new settlements based on adjusted balances
-    if adjusted_balances[current_player.id] > 0:  # Current player is owed money
-        for player in group.players:
-            if player.id != current_player.id and adjusted_balances[player.id] < 0:
-                # Calculate how much this player owes the current player
-                owed_amount = min(adjusted_balances[current_player.id], abs(adjusted_balances[player.id]))
-                
-                if owed_amount > 0:
-                    settlement = Settlement(
-                        from_player_id=player.id,
-                        to_player_id=current_player.id,
-                        amount=owed_amount,
-                        description=f"{player.name} pays {current_player.name}",
-                        group_id=group.id
-                    )
-                    db.session.add(settlement)
-    elif adjusted_balances[current_player.id] < 0:  # Current player owes money
-        for player in group.players:
-            if player.id != current_player.id and adjusted_balances[player.id] > 0:
-                # Calculate how much the current player owes this player
-                owed_amount = min(abs(adjusted_balances[current_player.id]), adjusted_balances[player.id])
-                
-                if owed_amount > 0:
-                    settlement = Settlement(
-                        from_player_id=current_player.id,
-                        to_player_id=player.id,
-                        amount=owed_amount,
-                        description=f"{current_player.name} pays {player.name}",
-                        group_id=group.id
-                    )
-                    db.session.add(settlement)
-    
-    db.session.commit()
-    
-    # Get all settlements for the current player (both new and previously settled)
+    # Get all settlements for the current player
     current_player_settlements = Settlement.query.filter(
         ((Settlement.from_player_id == current_player.id) | 
         (Settlement.to_player_id == current_player.id)),
@@ -708,12 +739,12 @@ def show_settlements(group_name):
         from_player = Player.query.get(settlement.from_player_id)
         to_player = Player.query.get(settlement.to_player_id)
         
-        text = f"{from_player.name} pays {to_player.name} €{settlement.amount:.2f}"
+        text = f"{from_player.name} pays {to_player.name} ${settlement.amount:.2f}"
         if settlement.settled:
             text += " (Settled)"
             
         formatted_settlements.append({
-            'id': str(settlement.id),  # Convert to string to match frontend expectation
+            'id': str(settlement.id),
             'text': text,
             'from': from_player.name,
             'to': to_player.name,
@@ -728,12 +759,9 @@ def show_settlements(group_name):
             'id': current_player.id,
             'name': current_player.name,
             'username': flask_session.get('username'),
-            'balance': raw_balances[current_player.id]  # Return the raw balance for display
+            'balance': raw_balance
         }
     })
-
-
-
 
 @app.route('/settlements/<group_name>/settle', methods=['POST'])
 @login_required
@@ -984,12 +1012,15 @@ def leave_group(group_name):
 @login_required
 def remove_session(group_name, session_id):
     poker_session = Session.query.get_or_404(session_id)
+    group_id = poker_session.group_id
     balances = Balance.query.filter_by(session_id=session_id).all()
     for balance in balances:
         db.session.delete(balance)
     db.session.delete(poker_session)
     db.session.commit()
     
+    calculate_settlements_for_group(group_id)
+
     return jsonify({
         'success': True
     })
