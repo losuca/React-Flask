@@ -1,5 +1,6 @@
 "use client"
 
+import { NumericFormat } from 'react-number-format'
 import { useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useParams } from "next/navigation"
@@ -173,12 +174,15 @@ export default function AddSessionPage() {
     const isWholeNumber = amount === Math.floor(amount);
     
     // Format the number - show no decimals for whole numbers, 2 decimals otherwise
-    const formattedAmount = isWholeNumber 
+    let formattedAmount = isWholeNumber 
       ? Math.abs(amount).toString() 
       : Math.abs(amount).toFixed(2);
-    
+
+    formattedAmount = formattedAmount.replace('.', ',');
     // Add the appropriate sign and currency symbol
-    return amount >= 0 ? `+€${formattedAmount}` : `-€${formattedAmount}`;
+    if (amount === 0)
+      return `€${formattedAmount}`;
+    return amount < 0 ? `-€${formattedAmount}` : `+€${formattedAmount}`;
   };
 
   // Authentication loading state
@@ -301,18 +305,22 @@ export default function AddSessionPage() {
                         <Euro className="h-4 w-4" />
                         Buy-in Amount (€)
                       </Label>
-                      <Input
+                      <NumericFormat
+                        customInput={Input}
                         id="buy-in"
-                        type="number"
-                        inputMode="decimal"
-                        min="0"
-                        step="0.01"
+                        decimalSeparator=","
+                        thousandSeparator="."
                         value={buyIn}
-                        onChange={(e) => setBuyIn(e.target.value)}
-                        placeholder="0"  // Added placeholder
+                        onValueChange={(values) => {
+                          // values.value gives you the numeric value as a string (with . as decimal)
+                          // values.formattedValue gives you the formatted string (with , as decimal)
+                          setBuyIn(values.value); // Store the numeric value internally
+                        }}
+                        placeholder="0"
                         className="focus:ring-2 focus:ring-primary/50"
                         required
                       />
+
                       <p className="text-xs text-muted-foreground">
                         The amount each player contributed to the pot
                       </p>
@@ -335,7 +343,7 @@ export default function AddSessionPage() {
                           ? 'text-green-600 dark:text-green-400' 
                           : 'text-red-600 dark:text-red-400'
                       }`}>
-                        €{calculateTotalProfitLoss().toFixed(2)}
+                        {formatProfitLoss(calculateTotalProfitLoss())}
                       </div>
                       {Math.abs(calculateTotalProfitLoss()) < 0.01 ? (
                         <p className="text-xs text-green-600 dark:text-green-400 mt-1">
@@ -441,19 +449,21 @@ export default function AddSessionPage() {
                                   </div>
                                 </div>
                               <div className="col-span-3 sm:col-span-3">
-                                <Input
-                                  id={`chips-${player.id}`}
-                                  type="number"
-                                  inputMode="decimal"
-                                  step="0.01"
-                                  min="0"
-                                  value={playerChips[player.name] || ""}
-                                  onChange={(e) => handleChipsChange(player.name, e.target.value)}
-                                  placeholder="0"
-                                  className="focus:ring-2 focus:ring-primary/50"
-                                  disabled={!playerParticipation[player.name]}
-                                  required={playerParticipation[player.name]}
-                                />
+                              <NumericFormat
+                                customInput={Input}
+                                id={`chips-${player.id}`}
+                                decimalSeparator=","
+                                thousandSeparator="."
+                                value={playerChips[player.name] || ""}
+                                onValueChange={(values) => {
+                                  handleChipsChange(player.name, values.value); // Store the numeric value internally
+                                }}
+                                placeholder="0"
+                                className="focus:ring-2 focus:ring-primary/50"
+                                disabled={!playerParticipation[player.name]}
+                                required={playerParticipation[player.name]}
+                              />
+
                               </div>
                               
                               <div className="col-span-3 sm:col-span-3">

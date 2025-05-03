@@ -121,12 +121,15 @@ export default function SessionDetailPage() {
     const isWholeNumber = amount === Math.floor(amount);
     
     // Format the number - show no decimals for whole numbers, 2 decimals otherwise
-    const formattedAmount = isWholeNumber 
+    let formattedAmount = isWholeNumber 
       ? Math.abs(amount).toString() 
       : Math.abs(amount).toFixed(2);
-    
+
+    formattedAmount = formattedAmount.replace('.', ',');
     // Add the appropriate sign and currency symbol
-    return amount >= 0 ? `+€${formattedAmount}` : `-€${formattedAmount}`;
+    if (amount === 0)
+      return `€${formattedAmount}`;
+    return amount < 0 ? `-€${formattedAmount}` : `+€${formattedAmount}`;
   };
 
   // Authentication loading state

@@ -95,19 +95,22 @@ export default function PlayerStatsPage() {
     fetchPlayerStats()
   }, [playerId, user, authLoading, router])
 
-    // For displaying profit/loss values consistently
-    const formatProfitLoss = (amount: number): string => {
-        // Check if the amount is a whole number (no decimal part)
-        const isWholeNumber = amount === Math.floor(amount);
-        
-        // Format the number - show no decimals for whole numbers, 2 decimals otherwise
-        const formattedAmount = isWholeNumber 
-            ? Math.abs(amount).toString() 
-            : Math.abs(amount).toFixed(2);
-        
-        // Add the appropriate sign and currency symbol
-        return amount >= 0 ? `+€${formattedAmount}` : `-€${formattedAmount}`;
-        };
+  // For displaying profit/loss values consistently
+  const formatProfitLoss = (amount: number): string => {
+    // Check if the amount is a whole number (no decimal part)
+    const isWholeNumber = amount === Math.floor(amount);
+    
+    // Format the number - show no decimals for whole numbers, 2 decimals otherwise
+    let formattedAmount = isWholeNumber 
+      ? Math.abs(amount).toString() 
+      : Math.abs(amount).toFixed(2);
+
+    formattedAmount = formattedAmount.replace('.', ',');
+    // Add the appropriate sign and currency symbol
+    if (amount === 0)
+      return `€${formattedAmount}`;
+    return amount < 0 ? `-€${formattedAmount}` : `+€${formattedAmount}`;
+  };
 
   // Authentication loading state
   if (authLoading) {
