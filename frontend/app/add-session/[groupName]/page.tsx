@@ -318,6 +318,7 @@ export default function AddSessionPage() {
                         }}
                         placeholder="0"
                         className="focus:ring-2 focus:ring-primary/50"
+                        inputMode="decimal"
                         required
                       />
 
@@ -460,6 +461,7 @@ export default function AddSessionPage() {
                                 }}
                                 placeholder="0"
                                 className="focus:ring-2 focus:ring-primary/50"
+                                inputMode="decimal"
                                 disabled={!playerParticipation[player.name]}
                                 required={playerParticipation[player.name]}
                               />
