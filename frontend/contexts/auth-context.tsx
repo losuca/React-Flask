@@ -46,11 +46,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth()
   }, [])
 
-  const login = async (username: string, password: string) => {
+  const login = async (username: string, password: string, rememberMe: boolean = false) => {
     setLoading(true)
     setError(null)
     try {
-      const response = await api.login(username, password)
+      const response = await api.login(username, password, rememberMe)
       setUser(response.user)
       router.push("/home")
     } catch (err: any) {

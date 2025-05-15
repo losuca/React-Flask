@@ -28,7 +28,7 @@ app.config.update(
     SQLALCHEMY_TRACK_MODIFICATIONS=False,
     SESSION_COOKIE_SECURE=os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true',
     SESSION_COOKIE_HTTPONLY=True,
-    PERMANENT_SESSION_LIFETIME=timedelta(hours=2)
+    PERMANENT_SESSION_LIFETIME=timedelta(days=365)
 )
 
 # Initialize extensions
@@ -199,11 +199,12 @@ def login():
         data = request.get_json() if request.is_json else request.form
         username = data.get('username')
         password = data.get('password')
+        remember_me = data.get('remember_me', False)
         
         user = User.query.filter_by(username=username).first()
         
         if user and user.check_password(password):
-            flask_session.permanent = False
+            flask_session.permanent = remember_me
             flask_session.clear()
             flask_session['user_id'] = user.id
             flask_session['username'] = username

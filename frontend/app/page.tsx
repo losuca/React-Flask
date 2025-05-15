@@ -11,11 +11,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import Link from "next/link"
 import { Eye, EyeOff, LogIn, User, KeyRound, CheckCircle } from "lucide-react"
 import  { useRouter, useSearchParams } from "next/navigation"
+import { Checkbox } from "@/components/ui/checkbox"
 
 function LoginContent() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const { login, loading, error, clearError } = useAuth()
   const router = useRouter()
   const [registrationSuccess, setRegistrationSuccess] = useState(false)
@@ -137,6 +139,16 @@ function LoginContent() {
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="remember-me" 
+                  checked={rememberMe} 
+                  onCheckedChange={(checked) => setRememberMe(checked === true)}
+                />
+                <Label htmlFor="remember-me" className="text-sm">
+                  Remember me
+                </Label>
               </div>
             </CardContent>
             

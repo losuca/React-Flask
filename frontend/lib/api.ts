@@ -13,8 +13,8 @@ export const checkAuthStatus = async () => {
   return response.data
 }
 
-export const login = async (username: string, password: string) => {
-  const response = await api.post("/", { username, password })
+export const login = async (username: string, password: string, rememberMe: boolean = false) => {
+  const response = await api.post("/", { username, password, remember_me: rememberMe })
   return response.data
 }
 
