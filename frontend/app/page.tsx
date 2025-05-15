@@ -18,7 +18,7 @@ function LoginContent() {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
-  const { login, loading, error, clearError } = useAuth()
+  const { login, loading, error, clearError, user } = useAuth()
   const router = useRouter()
   const [registrationSuccess, setRegistrationSuccess] = useState(false)
   const searchParams = useSearchParams()
@@ -30,6 +30,12 @@ function LoginContent() {
       setRegistrationSuccess(true)
     }
   }, [searchParams])
+
+  useEffect(() => {
+    if (user) {
+      router.push("/home")
+    }
+  }, [user, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
