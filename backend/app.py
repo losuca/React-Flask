@@ -37,6 +37,9 @@ db.init_app(app)
 #if os.environ.get('FLASK_ENV') == 'production':
 #    csrf = CSRFProtect(app)
 
+with app.app_context():
+    db.create_all()
+
 # Configure CORS
 cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')
 CORS(app, origins=cors_origins, supports_credentials=True)
