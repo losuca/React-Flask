@@ -26,7 +26,15 @@ app.config.update(
     SECRET_KEY=os.environ.get('SECRET_KEY', 'generate-a-good-secret-key'),
     SQLALCHEMY_DATABASE_URI=database_url,
     SQLALCHEMY_TRACK_MODIFICATIONS=False,
+    
+    # --- UPDATED COOKIE SETTINGS ---
+    # 1. Allow cookies over HTTPS (Production) but keep False for HTTP (Localhost)
     SESSION_COOKIE_SECURE=os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true',
+    
+    # 2. Allow cookies to travel between Vercel and Render
+    # 'None' is required for cross-site (Production). 'Lax' is better for Localhost.
+    SESSION_COOKIE_SAMESITE=os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax'),
+    
     SESSION_COOKIE_HTTPONLY=True,
     PERMANENT_SESSION_LIFETIME=timedelta(days=365)
 )
