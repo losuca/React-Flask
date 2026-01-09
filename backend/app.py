@@ -39,7 +39,7 @@ db.init_app(app)
 
 # Configure CORS
 cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')
-CORS(app, origins="*", supports_credentials=True)
+CORS(app, origins=cors_origins, supports_credentials=True)
 
 # Setup logging
 def configure_logging():
