@@ -448,12 +448,6 @@ export default function GroupDashboardPage() {
                 </div>
                 
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/group/${groupName}/settings`} className="flex items-center gap-1">
-                      <Settings size={16} />
-                      <span>Settings</span>
-                    </Link>
-                  </Button>
                   
                   {/* Invite Dialog */}
                   <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
@@ -542,7 +536,7 @@ export default function GroupDashboardPage() {
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
-                  <Button asChild>
+                  <Button size="sm" asChild>
                     <Link href={`/add-session/${groupName}`} className="flex items-center gap-1">
                       <PlusCircle size={16} />
                       <span>Add Session</span>
